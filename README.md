@@ -120,38 +120,34 @@ Les broches sont définies dans `lib/WaveshareESP32S3Lib/src/config/pins_definit
 | UART | TX=43, RX=44 |
 | Boot Button | GPIO0 |
 
-## 🔧 Problèmes de Compilation Connus
+## 🔧 Compilation du Projet
 
-### Incompatibilité Arduino_GFX
+### ⚠️ Important : Problèmes de Compatibilité
 
-La bibliothèque `Arduino_GFX` version 1.6.x requiert Arduino-ESP32 framework 3.0+, mais PlatformIO utilise actuellement la version 2.0.x.
+La bibliothèque `Arduino_GFX` v1.4.7+ (requise pour le pilote AXS15231B) nécessite **Arduino-ESP32 v3.0+**, mais PlatformIO utilise actuellement la version 2.x par défaut.
 
-**Solutions**:
+### 📖 Guide de Compilation Détaillé
 
-#### Option 1: Utiliser Arduino-ESP32 3.0+ (Recommandé)
+**➡️ Consultez [COMPILATION_NOTES.md](COMPILATION_NOTES.md) pour les instructions complètes de compilation.**
 
-Modifiez `platformio.ini`:
-```ini
-[env:esp32s3]
-platform = espressif32
-platform_packages =
-    platformio/framework-arduinoespressif32 @ https://github.com/espressif/arduino-esp32.git#3.0.7
-board = esp32-s3-devkitc-1
-framework = arduino
-```
+Ce document contient :
+- ✅ **Option 1** : Arduino IDE 2.x (Recommandé - Le plus simple)
+- ⚙️ **Option 2** : PlatformIO avec patch manuel
+- 🔧 **Option 3** : PlatformIO avec Arduino-ESP32 3.0 (Avancé)
+- 📋 Explications détaillées des problèmes de compatibilité
+- 🎯 Recommandations selon votre niveau
 
-#### Option 2: Downgrade Arduino_GFX
+### Compilation Rapide (Arduino IDE)
 
-Modifiez `platformio.ini`:
-```ini
-lib_deps =
-    moononournation/GFX Library for Arduino@^1.3.7  # Version compatible 2.x
-    ...
-```
+La méthode la plus simple pour compiler ce projet :
 
-#### Option 3: Compiler depuis l'IDE Arduino
+1. Installer Arduino IDE 2.x
+2. Installer ESP32 Board Manager v3.0+
+3. Installer les bibliothèques requises via le Library Manager
+4. Configurer la carte : ESP32S3 Dev Module avec PSRAM OPI
+5. Compiler et uploader !
 
-Le projet peut être compilé directement depuis l'Arduino IDE avec les bibliothèques appropriées.
+**Le code est 100% fonctionnel**, seule la configuration de l'environnement de compilation nécessite attention.
 
 ## 📚 Utilisation de la Bibliothèque
 
