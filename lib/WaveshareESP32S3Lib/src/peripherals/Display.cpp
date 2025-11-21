@@ -167,23 +167,23 @@ uint8_t WaveshareDisplay::getRotation() {
 }
 
 void WaveshareDisplay::initBacklight() {
-    // Configurer le PWM pour le rétroéclairage
-    ledcSetup(BACKLIGHT_PWM_CHANNEL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RESOLUTION);
-    ledcAttachPin(LCD_BL, BACKLIGHT_PWM_CHANNEL);
-    
+    // Configurer le PWM pour le rétroéclairage (API Arduino-ESP32 3.x)
+    ledcAttach(LCD_BL, BACKLIGHT_PWM_FREQ, BACKLIGHT_PWM_RESOLUTION);
+
     // Définir la luminosité initiale
     setBrightness(_brightness);
 }
 
 void WaveshareDisplay::setBrightness(uint8_t brightness) {
     if (brightness > 100) brightness = 100;
-    
+
     _brightness = brightness;
-    
+
     // Convertir 0-100 en 0-255
     uint8_t pwmValue = map(brightness, 0, 100, 0, 255);
-    
-    ledcWrite(BACKLIGHT_PWM_CHANNEL, pwmValue);
+
+    // API Arduino-ESP32 3.x : ledcWrite prend la broche, pas le canal
+    ledcWrite(LCD_BL, pwmValue);
 }
 
 uint8_t WaveshareDisplay::getBrightness() {
@@ -327,7 +327,8 @@ void WaveshareDisplay::drawBitmap(int16_t x, int16_t y, const uint8_t* bitmap,
 void WaveshareDisplay::drawRGBBitmap(int16_t x, int16_t y, const uint16_t* bitmap,
                                      int16_t w, int16_t h) {
     if (!_initialized || !_gfx) return;
-    _gfx->draw16bitRGBBitmap(x, y, bitmap, w, h);
+    // Cast pour compatibilité avec Arduino_GFX
+    _gfx->draw16bitRGBBitmap(x, y, const_cast<uint16_t*>(bitmap), w, h);
 }
 
 // ============================================================================
