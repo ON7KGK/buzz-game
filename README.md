@@ -120,34 +120,6 @@ Les broches sont définies dans `lib/WaveshareESP32S3Lib/src/config/pins_definit
 | UART | TX=43, RX=44 |
 | Boot Button | GPIO0 |
 
-## 🔧 Compilation du Projet
-
-### ⚠️ Important : Problèmes de Compatibilité
-
-La bibliothèque `Arduino_GFX` v1.4.7+ (requise pour le pilote AXS15231B) nécessite **Arduino-ESP32 v3.0+**, mais PlatformIO utilise actuellement la version 2.x par défaut.
-
-### 📖 Guide de Compilation Détaillé
-
-**➡️ Consultez [COMPILATION_NOTES.md](COMPILATION_NOTES.md) pour les instructions complètes de compilation.**
-
-Ce document contient :
-- ✅ **Option 1** : Arduino IDE 2.x (Recommandé - Le plus simple)
-- ⚙️ **Option 2** : PlatformIO avec patch manuel
-- 🔧 **Option 3** : PlatformIO avec Arduino-ESP32 3.0 (Avancé)
-- 📋 Explications détaillées des problèmes de compatibilité
-- 🎯 Recommandations selon votre niveau
-
-### Compilation Rapide (Arduino IDE)
-
-La méthode la plus simple pour compiler ce projet :
-
-1. Installer Arduino IDE 2.x
-2. Installer ESP32 Board Manager v3.0+
-3. Installer les bibliothèques requises via le Library Manager
-4. Configurer la carte : ESP32S3 Dev Module avec PSRAM OPI
-5. Compiler et uploader !
-
-**Le code est 100% fonctionnel**, seule la configuration de l'environnement de compilation nécessite attention.
 
 ## 📚 Utilisation de la Bibliothèque
 
