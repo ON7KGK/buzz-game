@@ -13,6 +13,7 @@
 
 #include <Arduino.h>
 #include "init.h"
+#include "fonts.h"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OBJETS GLOBAUX (définis dans init.h)
@@ -34,21 +35,58 @@ void setup() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // LOGIQUE APPLICATIVE - Test simple
+    // LOGIQUE APPLICATIVE - Démo des polices
     // ─────────────────────────────────────────────────────────────────────
 
-    // 1. Afficher écran blanc + texte
     display.clear(WHITE);
-    display.printCentered("Coucou", BLACK, 3);
-    Serial.println("✓ Écran blanc affiché");
-    Serial.println("✓ Texte 'Coucou' affiché");
+    auto canvas = display.getCanvas();
+    canvas->setTextColor(BLACK);  // ← TEXTE NOIR SUR FOND BLANC
+    int16_t y = 20;
 
-    // 2. Jouer un fichier audio
+    // Sans-Serif (moderne, lisible)
+    canvas->setFont(&FreeSans9pt7b);
+    canvas->setCursor(10, y); y += 25;
+    canvas->println("FreeSans 9pt - Moderne");
+
+    canvas->setFont(&FreeSansBold12pt7b);
+    canvas->setCursor(10, y); y += 30;
+    canvas->println("FreeSansBold 12pt");
+
+    canvas->setFont(&FreeSansBold18pt7b);
+    canvas->setCursor(10, y); y += 40;
+    canvas->println("Bold 18pt");
+
+    canvas->setFont(&FreeSansBold24pt7b);
+    canvas->setCursor(10, y); y += 50;
+    canvas->println("Bold 24pt");
+
+    // Serif (classique, élégant)
+    y += 10;
+    canvas->setFont(&FreeSerif12pt7b);
+    canvas->setCursor(10, y); y += 30;
+    canvas->println("FreeSerif 12pt - Classique");
+
+    canvas->setFont(&FreeSerifBold18pt7b);
+    canvas->setCursor(10, y); y += 40;
+    canvas->println("SerifBold 18pt");
+
+    // Mono (largeur fixe, code)
+    y += 10;
+    canvas->setFont(&FreeMono9pt7b);
+    canvas->setCursor(10, y); y += 25;
+    canvas->println("FreeMono 9pt - Code 123");
+
+    canvas->setFont(&FreeMonoBold12pt7b);
+    canvas->setCursor(10, y); y += 30;
+    canvas->println("MonoBold 12pt");
+
+    display.flush();
+    Serial.println("✓ Démo des polices affichée");
+
+    // Jouer un son
+    delay(2000);
     if (audio.play("/audio/tada.mp3")) {
         Serial.println("♪ Lecture de /audio/tada.mp3");
-    } else {
-        Serial.println("⚠️  Fichier /audio/tada.mp3 non trouvé");
-        Serial.println("   Assurez-vous que le fichier existe sur la carte SD");
     }
 
     Serial.println();
