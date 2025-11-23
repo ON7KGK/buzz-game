@@ -14,45 +14,45 @@
 // ============================================================================
 // AFFICHAGE LCD - AXS15231B (QSPI Interface)
 // ============================================================================
-#define LCD_QSPI_CS         45    // Chip Select
-#define LCD_QSPI_CLK        47    // Clock
-#define LCD_QSPI_D0         21    // Data 0
-#define LCD_QSPI_D1         48    // Data 1
-#define LCD_QSPI_D2         40    // Data 2
-#define LCD_QSPI_D3         39    // Data 3
+#define LCD_QSPI_CS         12    // Chip Select
+#define LCD_QSPI_CLK        5    // Clock
+#define LCD_QSPI_D0         1    // Data 0
+#define LCD_QSPI_D1         2    // Data 1
+#define LCD_QSPI_D2         3    // Data 2
+#define LCD_QSPI_D3         4    // Data 3
 #define LCD_RST             -1    // Reset (non utilisé, géré par AXS15231B)
-#define LCD_BL              1     // Backlight PWM
+#define LCD_BL              6    // Backlight PWM (GPIO 46 sur certains modèles, tester aussi 1)
 
 // Résolution de l'écran
 #define LCD_WIDTH           320
 #define LCD_HEIGHT          480
-#define LCD_ROTATION        0     // 0, 1, 2, 3 (0=portrait, 1=paysage, etc.)
+#define LCD_ROTATION        3     // 0, 1, 2, 3 (0=portrait, 1=paysage, etc.)
 
 // ============================================================================
 // TACTILE CAPACITIF - AXS15231B (I2C Interface)
 // ============================================================================
-#define TOUCH_SDA           4     // I2C Data
-#define TOUCH_SCL           8     // I2C Clock
-#define TOUCH_INT           11    // Interrupt
-#define TOUCH_RST           12    // Reset
+#define TOUCH_SDA           -1     // I2C Data
+#define TOUCH_SCL           -1     // I2C Clock
+#define TOUCH_INT           -1    // Interrupt
+#define TOUCH_RST           -1    // Reset
 #define TOUCH_ADDR          0x3B  // Adresse I2C du contrôleur tactile
 
 // ============================================================================
 // BUS I2C PRINCIPAL (Capteurs et périphériques)
 // ============================================================================
-#define I2C_SDA             17    // I2C Data principale
-#define I2C_SCL             18    // I2C Clock principale
-#define SENSOR_SDA          17    // Alias pour les capteurs
-#define SENSOR_SCL          18    // Alias pour les capteurs
+#define I2C_SDA             8    // I2C Data principale
+#define I2C_SCL             7    // I2C Clock principale
+#define SENSOR_SDA          8    // Alias pour les capteurs
+#define SENSOR_SCL          7    // Alias pour les capteurs
 
 // ============================================================================
 // AUDIO - ES8311 Codec (I2S Interface)
 // ============================================================================
-#define I2S_MCLK            16    // Master Clock
-#define I2S_BCLK            7     // Bit Clock
-#define I2S_LRCK            5     // Left/Right Clock (WS)
-#define I2S_DOUT            6     // Data Out (Playback)
-#define I2S_DIN             15    // Data In (Recording)
+#define I2S_MCLK            44    // Master Clock
+#define I2S_BCLK            13     // Bit Clock
+#define I2S_LRCK            15     // Left/Right Clock (WS)
+#define I2S_DOUT            16     // Data Out (Playback)
+#define I2S_DIN             14    // Data In (Recording)
 #define ES8311_ADDR         0x18  // Adresse I2C du codec audio
 
 // Pins supplémentaires audio
@@ -60,7 +60,7 @@
 #define CODEC_ADC_I2S_WS    42    // ADC Word Select
 #define CODEC_ADC_I2S_DOUT  2     // ADC Data Out
 
-#define PA_CTRL             46    // Power Amplifier Control
+#define PA_CTRL             11    // Power Amplifier Control
 
 // ============================================================================
 // IMU 6-AXES - QMI8658 (I2C Interface)
@@ -90,9 +90,9 @@
 // ============================================================================
 // CARTE SD/TF (SD_MMC Interface)
 // ============================================================================
-#define SD_MMC_CLK          14    // Clock
-#define SD_MMC_CMD          13    // Command
-#define SD_MMC_D0           10    // Data 0
+#define SD_MMC_CLK          11    // Clock
+#define SD_MMC_CMD          10    // Command
+#define SD_MMC_D0           9    // Data 0
 // Mode 1-bit uniquement pour ce module
 // D1, D2, D3 non utilisés
 
@@ -124,15 +124,14 @@
 // ============================================================================
 // BOUTONS
 // ============================================================================
-#define BTN_BOOT            0     // Bouton BOOT (GPIO0)
+#define BTN_BOOT            -1     // Bouton BOOT (GPIO0)
 #define BTN_PWR             -1    // Bouton PWR (connecté au AXP2101)
 
 // ============================================================================
 // GPIO EXPOSÉS (Connecteur d'extension)
 // ============================================================================
 // Ces GPIO sont disponibles sur le connecteur 2.54mm
-#define GPIO_EXT_1          9     // GPIO disponible 1
-#define GPIO_EXT_2          19    // GPIO disponible 2
+#define GPIO_EXT_1          9     // GPIO disponible 2
 #define GPIO_EXT_3          20    // GPIO disponible 3
 #define GPIO_EXT_4          35    // GPIO disponible 4
 #define GPIO_EXT_5          36    // GPIO disponible 5

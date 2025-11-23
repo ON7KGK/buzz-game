@@ -23,7 +23,7 @@
 // ============================================================================
 #define FEATURE_AUDIO_ENABLED            // Active le codec audio ES8311
 // #define FEATURE_MICROPHONE_ENABLED    // Active le microphone intégré
-// #define FEATURE_SPEAKER_ENABLED       // Active le haut-parleur
+#define FEATURE_SPEAKER_ENABLED       // Active le haut-parleur
 
 // ============================================================================
 // CAPTEURS
@@ -57,7 +57,7 @@
 // INTERFACE GRAPHIQUE
 // ============================================================================
 #define FEATURE_LVGL_ENABLED             // Active LVGL pour l'interface graphique
-// #define FEATURE_LVGL_DEMO             // Active les démos LVGL
+#define FEATURE_LVGL_DEMO             // Active les démos LVGL
 
 // ============================================================================
 // BOUTONS
