@@ -1,0 +1,2 @@
+# Désactiver la bibliothèque SD du framework pour éviter le conflit
+# On utilise uniquement SD_MMC
