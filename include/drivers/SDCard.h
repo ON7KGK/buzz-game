@@ -1,6 +1,6 @@
 /**
  * @file SDCard.h
- * @brief Classe pour gérer la carte SD/TF
+ * @brief Classe pour gérer la carte SD/TF via SD_MMC
  *
  * @author SPARKOH! - Michaël
  * @date 2025
@@ -11,7 +11,6 @@
 
 #include <Arduino.h>
 #include <SD_MMC.h>
-#include <SD.h>
 #include "config/sd_config.h"
 #include "features.h"
 
@@ -23,7 +22,7 @@ public:
     SDCard() : initialized(false), cardSize(0) {}
 
     /**
-     * @brief Initialise la carte SD
+     * @brief Initialise la carte SD via SD_MMC
      * @return true si succès, false sinon
      */
     bool begin() {
@@ -31,11 +30,11 @@ public:
         return false;
         #endif
 
-        // Configuration des pins SD_MMC
+        // Configuration des pins SD_MMC (mode SDIO 1-bit)
         SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
 
         // Init SD_MMC en mode 1-bit
-        if (!SD_MMC.begin("/sdmmc", true, false, 20000)) {  // mode 1-bit, format_if_mount_failed=false, max_freq=20MHz
+        if (!SD_MMC.begin("/sdmmc", true, false, 20000)) {
             Serial.println("❌ Carte SD_MMC non détectée");
             return false;
         }
@@ -44,11 +43,6 @@ public:
         if (cardType == CARD_NONE) {
             Serial.println("❌ Aucune carte SD insérée");
             return false;
-        }
-
-        // Monter aussi via SD pour ESP8266Audio
-        if (!SD.begin()) {
-            Serial.println("⚠️  SD (pour audio) non monté, mais SD_MMC OK");
         }
 
         // Afficher les infos
