@@ -31,8 +31,11 @@ public:
         return false;
         #endif
 
+        // Configuration des pins SD_MMC
+        SD_MMC.setPins(SD_MMC_CLK, SD_MMC_CMD, SD_MMC_D0);
+
         // Init SD_MMC en mode 1-bit
-        if (!SD_MMC.begin("/sdcard", true)) {  // true = mode 1-bit
+        if (!SD_MMC.begin("/sdmmc", true, false, 20000)) {  // mode 1-bit, format_if_mount_failed=false, max_freq=20MHz
             Serial.println("❌ Carte SD_MMC non détectée");
             return false;
         }

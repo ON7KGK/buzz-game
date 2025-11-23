@@ -2,6 +2,8 @@
  * @file Audio.h
  * @brief Classe pour gérer l'audio ES8311 et lecture MP3/WAV
  *
+ * Utilise ESP32-audioI2S avec codec ES8311
+ *
  * @author SPARKOH! - Michaël
  * @date 2025
  */
@@ -10,31 +12,40 @@
 #define AUDIO_DRIVER_H
 
 #include <Arduino.h>
-#include "AudioFileSourceSD.h"
-#include "AudioFileSourceID3.h"
-#include "AudioGeneratorMP3.h"
-#include "AudioGeneratorWAV.h"
-#include "AudioOutputI2S.h"
+#include <Audio.h>  // ESP32-audioI2S library
 #include <SD_MMC.h>
-#include <SD.h>
+#include <Wire.h>
+#include "es8311.h"
+#include "esp_check.h"
 #include "config/audio_config.h"
 #include "features.h"
 
-class Audio {
+#define TAG "Audio"
+
+// Configuration ES8311
+#define EXAMPLE_SAMPLE_RATE     (16000)
+#define EXAMPLE_MCLK_MULTIPLE   (256)
+#define EXAMPLE_MCLK_FREQ_HZ    (EXAMPLE_SAMPLE_RATE * EXAMPLE_MCLK_MULTIPLE)
+#define EXAMPLE_VOICE_VOLUME    (75)
+
+class AudioDriver {
 public:
     /**
      * @brief Constructeur
      */
-    Audio() : source(nullptr),
-              mp3(nullptr),
-              wav(nullptr),
-              out(nullptr),
-              initialized(false),
-              playing(false),
-              volume(AUDIO_DEFAULT_VOLUME) {}
+    AudioDriver() : audio(nullptr), initialized(false) {
+        audio = new Audio();
+    }
 
     /**
-     * @brief Initialise l'audio
+     * @brief Destructeur
+     */
+    ~AudioDriver() {
+        if (audio) delete audio;
+    }
+
+    /**
+     * @brief Initialise l'audio ES8311 + I2S
      * @return true si succès, false sinon
      */
     bool begin() {
@@ -42,18 +53,22 @@ public:
         return false;
         #endif
 
-        // Configuration I2S
-        out = new AudioOutputI2S();
-        out->SetPinout(I2S_BCLK, I2S_LRCK, I2S_DOUT);
-        out->SetGain(volume / 100.0);
+        Serial.println("🔊 Init codec ES8311...");
 
-        // Activer l'amplificateur
-        pinMode(PA_CTRL, OUTPUT);
-        digitalWrite(PA_CTRL, HIGH);
-        delay(100);
+        // Initialiser le codec ES8311 via I2C
+        if (!initES8311()) {
+            Serial.println("❌ Échec init ES8311");
+            return false;
+        }
+
+        Serial.println("✓ Codec ES8311 initialisé");
+
+        // Configuration I2S
+        audio->setPinout(I2S_BCLK, I2S_LRCK, I2S_DOUT, I2S_MCLK);
+        audio->setVolume(DEFAULT_AUDIO_VOLUME / 5);  // 0...21 (scale from 0-100)
 
         initialized = true;
-        Serial.println("✓ Audio initialisé");
+        Serial.println("✓ Audio I2S configuré");
         return true;
     }
 
@@ -63,13 +78,10 @@ public:
      * @return true si la lecture démarre
      */
     bool play(const char* filename) {
-        if (!initialized) {
+        if (!initialized || !audio) {
             Serial.println("❌ Audio non initialisé");
             return false;
         }
-
-        // Arrêter la lecture en cours
-        stop();
 
         // Vérifier si le fichier existe
         if (!SD_MMC.exists(filename)) {
@@ -77,92 +89,28 @@ public:
             return false;
         }
 
-        // Créer la source depuis SD
-        source = new AudioFileSourceSD(filename);
-        if (!source->isOpen()) {
-            Serial.printf("❌ Impossible d'ouvrir: %s\n", filename);
-            delete source;
-            source = nullptr;
-            return false;
-        }
-
-        // Déterminer le type de fichier
-        String file = String(filename);
-        file.toLowerCase();
-
-        if (file.endsWith(".mp3")) {
-            mp3 = new AudioGeneratorMP3();
-            if (!mp3->begin(source, out)) {
-                Serial.println("❌ Échec démarrage MP3");
-                stop();
-                return false;
-            }
-        } else if (file.endsWith(".wav")) {
-            wav = new AudioGeneratorWAV();
-            if (!wav->begin(source, out)) {
-                Serial.println("❌ Échec démarrage WAV");
-                stop();
-                return false;
-            }
-        } else {
-            Serial.println("❌ Format non supporté (MP3/WAV uniquement)");
-            delete source;
-            source = nullptr;
-            return false;
-        }
-
-        playing = true;
+        // Lancer la lecture
+        audio->connecttoFS(SD_MMC, filename);
         Serial.printf("♪ Lecture: %s\n", filename);
         return true;
     }
 
     /**
      * @brief Met à jour la lecture (à appeler dans loop())
-     * @return true si la lecture continue, false si terminée
      */
-    bool loop() {
-        if (!playing) return false;
-
-        bool isRunning = false;
-
-        if (mp3 && mp3->isRunning()) {
-            isRunning = mp3->loop();
-        } else if (wav && wav->isRunning()) {
-            isRunning = wav->loop();
+    void loop() {
+        if (initialized && audio) {
+            audio->loop();
         }
-
-        if (!isRunning) {
-            stop();
-            Serial.println("♪ Lecture terminée");
-            return false;
-        }
-
-        return true;
     }
 
     /**
      * @brief Arrête la lecture en cours
      */
     void stop() {
-        if (mp3) {
-            if (mp3->isRunning()) mp3->stop();
-            delete mp3;
-            mp3 = nullptr;
+        if (audio) {
+            audio->stopSong();
         }
-
-        if (wav) {
-            if (wav->isRunning()) wav->stop();
-            delete wav;
-            wav = nullptr;
-        }
-
-        if (source) {
-            source->close();
-            delete source;
-            source = nullptr;
-        }
-
-        playing = false;
     }
 
     /**
@@ -170,7 +118,7 @@ public:
      * @return true si lecture en cours
      */
     bool isPlaying() {
-        return playing && (mp3 || wav);
+        return (audio && audio->isRunning());
     }
 
     /**
@@ -178,44 +126,60 @@ public:
      * @param vol Volume 0-100
      */
     void setVolume(uint8_t vol) {
-        volume = constrain(vol, 0, 100);
-        if (out) {
-            out->SetGain(volume / 100.0);
+        if (audio) {
+            // ESP32-audioI2S utilise 0-21
+            uint8_t scaledVol = map(constrain(vol, 0, 100), 0, 100, 0, 21);
+            audio->setVolume(scaledVol);
         }
     }
 
     /**
-     * @brief Récupère le volume actuel
-     * @return Volume 0-100
+     * @brief Accès direct à l'objet Audio pour fonctions avancées
      */
-    uint8_t getVolume() {
-        return volume;
-    }
-
-    /**
-     * @brief Désactive l'audio (économie d'énergie)
-     */
-    void disable() {
-        stop();
-        digitalWrite(PA_CTRL, LOW);
-    }
-
-    /**
-     * @brief Réactive l'audio
-     */
-    void enable() {
-        digitalWrite(PA_CTRL, HIGH);
-        delay(100);
+    Audio* getAudio() {
+        return audio;
     }
 
 private:
-    AudioFileSourceSD* source;
-    AudioGeneratorMP3* mp3;
-    AudioGeneratorWAV* wav;
-    AudioOutputI2S* out;
+    Audio* audio;
     bool initialized;
-    bool playing;
-    uint8_t volume;
+
+    /**
+     * @brief Initialise le codec ES8311
+     */
+    bool initES8311() {
+        es8311_handle_t es_handle = es8311_create(I2C_NUM_0, ES8311_ADDRRES_0);
+        if (!es_handle) {
+            Serial.println("❌ ES8311 create failed");
+            return false;
+        }
+
+        const es8311_clock_config_t es_clk = {
+            .mclk_inverted = false,
+            .sclk_inverted = false,
+            .mclk_from_mclk_pin = true,
+            .mclk_frequency = EXAMPLE_MCLK_FREQ_HZ,
+            .sample_frequency = EXAMPLE_SAMPLE_RATE
+        };
+
+        esp_err_t ret = es8311_init(es_handle, &es_clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16);
+        if (ret != ESP_OK) {
+            Serial.println("❌ ES8311 init failed");
+            return false;
+        }
+
+        ret = es8311_voice_volume_set(es_handle, EXAMPLE_VOICE_VOLUME, NULL);
+        if (ret != ESP_OK) {
+            Serial.println("⚠️  ES8311 volume set failed");
+        }
+
+        ret = es8311_microphone_config(es_handle, false);
+        if (ret != ESP_OK) {
+            Serial.println("⚠️  ES8311 microphone config failed");
+        }
+
+        return true;
+    }
 };
 
 #endif // AUDIO_DRIVER_H
