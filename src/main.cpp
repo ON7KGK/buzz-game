@@ -30,7 +30,6 @@ SDCard sd;
 void setup() {
     // Initialiser tout le hardware (voir include/init.h)
     if (!initHardware()) {
-        Serial.println("❌ Initialisation échouée - arrêt");
         while(1) { delay(1000); }
     }
 
@@ -40,7 +39,7 @@ void setup() {
 
     display.clear(WHITE);
     auto canvas = display.getCanvas();
-    canvas->setTextColor(BLACK);  // ← TEXTE NOIR SUR FOND BLANC
+    canvas->setTextColor(BLACK);
     int16_t y = 20;
 
     // Sans-Serif (moderne, lisible)
@@ -81,19 +80,10 @@ void setup() {
     canvas->println("MonoBold 12pt");
 
     display.flush();
-    Serial.println("✓ Démo des polices affichée");
 
     // Jouer un son
     delay(2000);
-    if (audio.play("/audio/tada.mp3")) {
-        Serial.println("♪ Lecture de /audio/tada.mp3");
-    }
-
-    Serial.println();
-    Serial.println("═══════════════════════════════════════════════════════════");
-    Serial.println("  PRÊT - En attente...");
-    Serial.println("═══════════════════════════════════════════════════════════");
-    Serial.println();
+    audio.play("/audio/touchette8.mp3");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
