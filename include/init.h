@@ -86,12 +86,14 @@ inline bool initTouch() {
 inline bool initHardware() {
     initSerial();
 
+    // IMPORTANT: Initialiser I2C AVANT Display et Touch car ils en dépendent
+    initI2C();
+
     if (!initDisplay()) {
         return false;
     }
 
     initSDCard();
-    initI2C();
     initAudio();
     initTouch();
 

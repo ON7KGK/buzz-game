@@ -15,4 +15,7 @@
 // Police 72pt pour affichage du compteur
 #include <FreeSansBold72pt7b.h>
 
+// Police 18pt avec accents français pour les consignes
+#include "../Fonts/FreeSansBold18ptAccents7b.h"
+
 #endif // FONTS_H
