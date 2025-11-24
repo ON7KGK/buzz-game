@@ -1,10 +1,10 @@
-# Waveshare ESP32-S3-Touch-LCD-3.5B - Projet SPARKOH!
+# Waveshare ESP32-S3-Touch-LCD-3.5B
 
 [![PlatformIO](https://img.shields.io/badge/PlatformIO-Ready-orange.svg)](https://platformio.org)
 [![ESP32-S3](https://img.shields.io/badge/ESP32--S3-Supported-green.svg)](https://www.espressif.com/en/products/socs/esp32-s3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Architecture modulaire v2.0** pour le module Waveshare ESP32-S3-Touch-LCD-3.5B, développé pour SPARKOH! - Centre de Culture Scientifique
+> **Architecture modulaire v2.0** pour le module Waveshare ESP32-S3-Touch-LCD-3.5B
 
 ## 📋 Description
 
