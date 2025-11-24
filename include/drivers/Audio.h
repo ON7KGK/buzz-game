@@ -53,22 +53,18 @@ public:
         return false;
         #endif
 
-        Serial.println("🔊 Init codec ES8311...");
 
         // Initialiser le codec ES8311 via I2C
         if (!initES8311()) {
-            Serial.println("❌ Échec init ES8311");
             return false;
         }
 
-        Serial.println("✓ Codec ES8311 initialisé");
 
         // Configuration I2S
         audio->setPinout(I2S_BCLK, I2S_LRCK, I2S_DOUT, I2S_MCLK);
         audio->setVolume(DEFAULT_AUDIO_VOLUME / 5);  // 0...21 (scale from 0-100)
 
         initialized = true;
-        Serial.println("✓ Audio I2S configuré");
         return true;
     }
 
@@ -79,19 +75,16 @@ public:
      */
     bool play(const char* filename) {
         if (!initialized || !audio) {
-            Serial.println("❌ Audio non initialisé");
             return false;
         }
 
         // Vérifier si le fichier existe
         if (!SD_MMC.exists(filename)) {
-            Serial.printf("❌ Fichier non trouvé: %s\n", filename);
             return false;
         }
 
         // Lancer la lecture
         audio->connecttoFS(SD_MMC, filename);
-        Serial.printf("♪ Lecture: %s\n", filename);
         return true;
     }
 
@@ -150,7 +143,6 @@ private:
     bool initES8311() {
         es8311_handle_t es_handle = es8311_create(I2C_NUM_0, ES8311_ADDRRES_0);
         if (!es_handle) {
-            Serial.println("❌ ES8311 create failed");
             return false;
         }
 
@@ -164,18 +156,15 @@ private:
 
         esp_err_t ret = es8311_init(es_handle, &es_clk, ES8311_RESOLUTION_16, ES8311_RESOLUTION_16);
         if (ret != ESP_OK) {
-            Serial.println("❌ ES8311 init failed");
             return false;
         }
 
         ret = es8311_voice_volume_set(es_handle, EXAMPLE_VOICE_VOLUME, NULL);
         if (ret != ESP_OK) {
-            Serial.println("⚠️  ES8311 volume set failed");
         }
 
         ret = es8311_microphone_config(es_handle, false);
         if (ret != ESP_OK) {
-            Serial.println("⚠️  ES8311 microphone config failed");
         }
 
         return true;

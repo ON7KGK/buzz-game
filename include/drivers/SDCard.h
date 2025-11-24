@@ -35,13 +35,11 @@ public:
 
         // Init SD_MMC en mode 1-bit
         if (!SD_MMC.begin("/sdmmc", true, false, 20000)) {
-            Serial.println("❌ Carte SD_MMC non détectée");
             return false;
         }
 
         uint8_t cardType = SD_MMC.cardType();
         if (cardType == CARD_NONE) {
-            Serial.println("❌ Aucune carte SD insérée");
             return false;
         }
 
@@ -49,7 +47,6 @@ public:
         cardSize = SD_MMC.cardSize() / (1024 * 1024);
         uint64_t usedSize = SD_MMC.usedBytes() / (1024 * 1024);
 
-        Serial.printf("✓ Carte SD détectée: %lluMB (utilisé: %lluMB)\n", cardSize, usedSize);
 
         initialized = true;
         return true;
@@ -136,31 +133,22 @@ public:
     void listDir(const char* dirname, uint8_t levels = 1) {
         if (!initialized) return;
 
-        Serial.printf("Listing directory: %s\n", dirname);
 
         File root = SD_MMC.open(dirname);
         if (!root) {
-            Serial.println("Failed to open directory");
             return;
         }
         if (!root.isDirectory()) {
-            Serial.println("Not a directory");
             return;
         }
 
         File file = root.openNextFile();
         while (file) {
             if (file.isDirectory()) {
-                Serial.print("  DIR : ");
-                Serial.println(file.name());
                 if (levels) {
                     listDir(file.path(), levels - 1);
                 }
             } else {
-                Serial.print("  FILE: ");
-                Serial.print(file.name());
-                Serial.print("\tSIZE: ");
-                Serial.println(file.size());
             }
             file = root.openNextFile();
         }

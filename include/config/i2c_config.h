@@ -31,4 +31,9 @@
 #define PCF85063_ADDR           0x51    // RTC
 #define AXP2101_ADDR            0x34    // Power management
 
+// ============================================================================
+// CONFIGURATION TOUCH
+// ============================================================================
+#define TOUCH_INT_TCA_PIN       2       // Broche du TCA9554 pour l'interruption tactile (P2)
+
 #endif // I2C_CONFIG_H

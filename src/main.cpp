@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Programme principal - LOGIQUE UNIQUEMENT
+ * @brief Programme principal - Compteur tactile avec audio
  *
  * Architecture modulaire pour projets SPARKOH!
  * - Toute l'initialisation hardware est dans include/init.h
@@ -22,68 +22,57 @@
 Display display;
 AudioDriver audio;
 SDCard sd;
+Touch touch;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VARIABLES GLOBALES
+// ═══════════════════════════════════════════════════════════════════════════
+
+int compteur = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FONCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+void afficherCompteur() {
+    display.clear(BLACK);
+    auto canvas = display.getCanvas();
+
+    // Texte jaune, grosse police
+    canvas->setTextColor(YELLOW);
+    canvas->setFont(&FreeSansBold24pt7b);
+
+    // Convertir le compteur en string
+    char texte[16];
+    sprintf(texte, "%d", compteur);
+
+    // Calculer la position pour centrer
+    int16_t x1, y1;
+    uint16_t w, h;
+    canvas->setTextSize(4);
+    canvas->getTextBounds(texte, 0, 0, &x1, &y1, &w, &h);
+
+    // Centrer horizontalement et verticalement
+    int16_t x = (480 - w) / 2 - x1;
+    int16_t y = (320 / 2) + (h / 2) - y1;
+
+    canvas->setCursor(x, y);
+    canvas->setTextSize(4);
+    canvas->print(texte);
+
+    display.flush();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SETUP - INITIALISATION
 // ═══════════════════════════════════════════════════════════════════════════
 
 void setup() {
-    // Initialiser tout le hardware (voir include/init.h)
     if (!initHardware()) {
         while(1) { delay(1000); }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // LOGIQUE APPLICATIVE - Démo des polices
-    // ─────────────────────────────────────────────────────────────────────
-
-    display.clear(WHITE);
-    auto canvas = display.getCanvas();
-    canvas->setTextColor(BLACK);
-    int16_t y = 20;
-
-    // Sans-Serif (moderne, lisible)
-    canvas->setFont(&FreeSans9pt7b);
-    canvas->setCursor(10, y); y += 25;
-    canvas->println("FreeSans 9pt - Moderne");
-
-    canvas->setFont(&FreeSansBold12pt7b);
-    canvas->setCursor(10, y); y += 30;
-    canvas->println("FreeSansBold 12pt");
-
-    canvas->setFont(&FreeSansBold18pt7b);
-    canvas->setCursor(10, y); y += 40;
-    canvas->println("Bold 18pt");
-
-    canvas->setFont(&FreeSansBold24pt7b);
-    canvas->setCursor(10, y); y += 50;
-    canvas->println("Bold 24pt");
-
-    // Serif (classique, élégant)
-    y += 10;
-    canvas->setFont(&FreeSerif12pt7b);
-    canvas->setCursor(10, y); y += 30;
-    canvas->println("FreeSerif 12pt - Classique");
-
-    canvas->setFont(&FreeSerifBold18pt7b);
-    canvas->setCursor(10, y); y += 40;
-    canvas->println("SerifBold 18pt");
-
-    // Mono (largeur fixe, code)
-    y += 10;
-    canvas->setFont(&FreeMono9pt7b);
-    canvas->setCursor(10, y); y += 25;
-    canvas->println("FreeMono 9pt - Code 123");
-
-    canvas->setFont(&FreeMonoBold12pt7b);
-    canvas->setCursor(10, y); y += 30;
-    canvas->println("MonoBold 12pt");
-
-    display.flush();
-
-    // Jouer un son
-    delay(2000);
-    audio.play("/audio/touchette8.mp3");
+    afficherCompteur();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -91,9 +80,12 @@ void setup() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void loop() {
-    // Mettre à jour la lecture audio (nécessaire pour ESP32-audioI2S)
-    audio.loop();
+    if (touch.isTouched()) {
+        compteur++;
+        afficherCompteur();
+        audio.play("/audio/gagne1.mp3");
+    }
 
-    // Petit délai pour éviter de saturer le CPU
-    delay(1);
+    audio.loop();
+    delay(10);
 }
