@@ -38,26 +38,25 @@ void afficherCompteur() {
     display.clear(BLACK);
     auto canvas = display.getCanvas();
 
-    // Texte jaune, grosse police
+    // Police FreeSansBold24pt7b agrandie 5x pour gros chiffres
     canvas->setTextColor(YELLOW);
     canvas->setFont(&FreeSansBold24pt7b);
+    canvas->setTextSize(5);
 
     // Convertir le compteur en string
     char texte[16];
     sprintf(texte, "%d", compteur);
 
-    // Calculer la position pour centrer
+    // Obtenir les dimensions du texte pour centrage précis
     int16_t x1, y1;
     uint16_t w, h;
-    canvas->setTextSize(4);
     canvas->getTextBounds(texte, 0, 0, &x1, &y1, &w, &h);
 
-    // Centrer horizontalement et verticalement
+    // Centrer parfaitement : milieu de l'écran - (dimensions du texte / 2)
     int16_t x = (480 - w) / 2 - x1;
-    int16_t y = (320 / 2) + (h / 2) - y1;
+    int16_t y = (320 - h) / 2 - y1;
 
     canvas->setCursor(x, y);
-    canvas->setTextSize(4);
     canvas->print(texte);
 
     display.flush();
