@@ -26,7 +26,7 @@ Touch touch;
 
 // Bandeaux LED SK9822
 LEDStrip led1(45, 46, 40);  // LED1: GPIO45 (DI), GPIO46 (CI), 40 LEDs
-LEDStrip led2(47, 48, 40);  // LED2: GPIO47 (DI), GPIO48 (CI), 40 LEDs
+LEDStrip led2(47, 48, 100);  // LED2: GPIO47 (DI), GPIO48 (CI), 40 LEDs
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION GPIO
@@ -66,7 +66,7 @@ uint8_t luminositeLED1 = 128;      // Luminosité LED1 (0-255, ajustable)
 const unsigned long TIMEOUT_JEU = 60000;         // 60 secondes
 const unsigned long DELAI_MESSAGE = 2000;        // 2 secondes pour messages
 const unsigned long DELAI_ABANDON = 2000;        // 2 secondes pour détecter abandon
-const unsigned long INTERVALLE_RAINBOW = 50;     // 50ms entre mises à jour rainbow
+const unsigned long INTERVALLE_RAINBOW = 2000;     // 20ms entre mises à jour rainbow (vitesse LED2)
 
 // Configuration du moniteur série
 const bool MONITEUR_ACTIF = false;               // true = affichage des infos de debug, false = désactivé
@@ -145,7 +145,6 @@ void afficherCompteur() {
     unsigned long secondes = compteur / 1000;
     unsigned long dixiemes = (compteur % 1000) / 100;
     static unsigned long derniereDixieme = 9999; // Valeur impossible au départ
-    static char dernierTexte[16] = "";
 
     // Calculer une valeur combinée pour détecter les changements
     unsigned long valeurActuelle = secondes * 10 + dixiemes;
@@ -162,33 +161,26 @@ void afficherCompteur() {
     canvas->setFont(&FreeSansBold72pt7b);
     canvas->setTextSize(1);
 
+    // Formater le texte avec un espace fixe (alignement à droite sur 2 chiffres)
     char texte[16];
-    sprintf(texte, "%lu.%lu", secondes, dixiemes);
+    sprintf(texte, "%2lu.%lu", secondes, dixiemes);
 
-    // Centrer parfaitement
+    // Effacer une zone rectangulaire fixe au centre
+    canvas->fillRect(50, 60, 380, 200, BLACK);
+
+    // Position FIXE au centre pour éviter le mouvement
+    // On utilise la largeur maximale possible "60.0" pour centrer
     int16_t x1, y1;
     uint16_t w, h;
-
-    // Effacer l'ancien texte en noir
-    if (strlen(dernierTexte) > 0) {
-        canvas->setTextColor(BLACK);
-        canvas->getTextBounds(dernierTexte, 0, 0, &x1, &y1, &w, &h);
-        int16_t x = (480 - w) / 2 - x1;
-        int16_t y = (320 - h) / 2 - y1;
-        canvas->setCursor(x, y);
-        canvas->print(dernierTexte);
-    }
-
-    // Afficher le nouveau texte en jaune
     canvas->setTextColor(YELLOW);
-    canvas->getTextBounds(texte, 0, 0, &x1, &y1, &w, &h);
-    int16_t x = (480 - w) / 2 - x1;
-    int16_t y = (320 - h) / 2 - y1;
-    canvas->setCursor(x, y);
-    canvas->print(texte);
 
-    // Sauvegarder le texte actuel pour l'effacer la prochaine fois
-    strcpy(dernierTexte, texte);
+    // Calculer la position basée sur la largeur max "60.0"
+    canvas->getTextBounds("60.0", 0, 0, &x1, &y1, &w, &h);
+    int16_t x_fixe = (480 - w) / 2 - x1;
+    int16_t y_fixe = (320 - h) / 2 - y1;
+
+    canvas->setCursor(x_fixe, y_fixe);
+    canvas->print(texte);
 
     display.flush();
 }
@@ -219,12 +211,13 @@ void afficherResultat(const char* ligne1, const char* ligne2, const char* ligne3
         canvas->print(l2);
     }
 
-    // Ligne 3 (instruction rejouer)
+    // Ligne 3 (instruction rejouer) - Police 14pt avec accents pour éviter retour à la ligne
     if (ligne3) {
+        canvas->setFont(&FreeSansBold14pt8b);  // Police 14pt avec accents
         String l3 = utf8ToLatin1(ligne3);
         canvas->getTextBounds(l3.c_str(), 0, 0, &x1, &y1, &w, &h);
         x = (480 - w) / 2 - x1;
-        canvas->setCursor(x, 200);
+        canvas->setCursor(x, 205);  // Ajuster la position Y
         canvas->print(l3);
     }
 
@@ -253,6 +246,12 @@ void led1Rouge() {
     led1.show();
 }
 
+void led1Bleu() {
+    led1.setBrightness(luminositeLED1);
+    led1.fill(0, 0, 255);
+    led1.show();
+}
+
 void mettreAJourLED2() {
     // Animation rainbow continue pour LED2
     unsigned long maintenant = millis();
@@ -276,7 +275,8 @@ void gererAttenteDepart() {
         coteDepart = 1;
         etatActuel = PRET_GAUCHE;
         ecranAffiche = false; // Réinitialiser le flag
-        afficherTexte("Appuie quand tu es prêt");
+        led1Bleu();  // LED1 bleu quand prêt
+        afficherTexte("Rejoins l'autre côté" ,"sans toucher");
         tempsAbandon = 0;
         return;
     }
@@ -286,7 +286,8 @@ void gererAttenteDepart() {
         coteDepart = 2;
         etatActuel = PRET_DROIT;
         ecranAffiche = false; // Réinitialiser le flag
-        afficherTexte("Appuie quand tu es prêt");
+        led1Bleu();  // LED1 bleu quand prêt
+        afficherTexte("Rejoins l'autre côté" , "sans toucher !");
         tempsAbandon = 0;
         return;
     }
