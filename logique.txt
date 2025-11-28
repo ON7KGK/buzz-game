@@ -1,0 +1,20 @@
+C'est un jeu "Buzz the wire" donc il faut éviter de toucher le serpentin en métal avec la baguette qui a un anneau de métal au bout. 
+On peut commencer à gauche ou à droite (gauche = GPIO38 et droit=GPIO39), la structure (serpentin) est à la masse (GND). Le manche avec l'anneau en métal est relié au GPIO40.
+Il y a un écran qui montre des consignes, un compteur, affiche un message si a perdu (touché une fois), un message si tu as gagné avec le nombre de secondes) et aussi invite à rejouer.
+Le module utilisé est un Waveshare.  Il y a deux bandeaux LED en 5V modèle SK9822.  Le premier appelé LED1 (GPIO 11 pour le DI, GPIO10 pour le CI) va changer de couleur en fonction de l’état du jeu (gagnant ou perdant) et si la variable JEU=false, il est en blanc.
+Au tout début, il peut y avoir trois possibilités : 
+1.le manche est sur le plot à gauche
+ou
+2.le manche est sur le plot à droite
+ou
+3.le manche touche la structure (serpentin) quelque part et est laissé là en touchette, le manche ne bouge pas, il a été abandonné là.
+Si 1. donc GPIO38 (gauche) est à LOW et que GPIO39 (droite) est à HIGH c'est que le jeu peut démarrer à gauche alors on peut afficher sur l'écran (Appuies quand tu es prêt) et un compteur peut commencer à 0 dès que le GPIO38 est repassé à HIGH. On est donc dans la phase de jeu (variable JEU=true).
+Si 2. donc GPIO38 (gauche) est à HIGH et que GPIO39 (droite) est à LOW c'est que le jeu peut démarrer à droite alors on peut afficher sur l'écran (Appuies quand tu est prêt) et un compteur peut commencer à 0 dès que le GPIO39 est repassé à HIGH. On est donc dans la phase de jeu (variable JEU=true).
+Si 3. donc GPIO38 à HIGH et GPIO39 à HIGH et GPIO40 à LOW pendant 2 secondes ou plus alors la variable JEU=false, car on n'est plus en train de jouer, le manche a été abandonné et donc on peut afficher "Pour jouer, places le manche à gauche ou à droite" 
+Pendant que JEU est à HIGH, le compteur tourne (fond noir et chiffres jaunes) et trois possibilités que je vais nommer a, b et c : 
+a.	le joueur arrive au côté opposé de celui où il a démarré et sans touchette (GPIO40 est resté à HIGH pendant que JEU=true) alors on efface l'écran (toujours fond noir) et on lance le fichier MP3 gagnant. Le ruban LED1 affiche du vert sur toutes ses leds. On indique "Bravo, tu as gagné en xx secondes" pendant 2 secondes puis ce message s'ajoute en dessous : "Pour rejouer appuie sur l'écran".
+b.	Le joueur pendant le jeu (JEU=true) touche le serpentin (GPIO40=LOW) moins de deux secondes, alors on lance le fichier MP3 perdant. Le ruban LED1 affiche du rouge sur toutes ses leds. On indique « Oh non tu as touché » pendant 2 secondes puis ce message s’ajoute en dessous « Pour rejouer, appuies sur l’écran ».
+c.	Le jeu dure plus de 120 secondes, donc si JEU=true, GPIO38,39,40 sont aussi à HIGH et que le compteur arrive à 120 alors on écrit « Le temps est écoulé » pendant 2 secondes puis ce message s’ajoute « Pour rejouer appuie sur l'écran ». Les leds du ruban LED1 passent toutes au rouge.
+Dès que l’écran est appuyé alors on éteint les leds rouges ou vertes et on les allument en blanc.
+Le touch n’est actif que lorsqu’on affiche le message « Pour rejouer appuie sur l'écran » et quand l’écran est touché alors on redémarre au début du programme avec les 3 possibilités.
+Dès qu’on démarre le programme, le ruban LED2 (GPIO 9 pour le DI, GPIO7 pour le CI)

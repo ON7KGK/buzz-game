@@ -22,7 +22,7 @@
 // 3  = GND     (Masse)
 // 5  = GPIO21
 // 7  = GPIO38
-// 9  = GPIO37
+// 9  = GPIO39
 // 11 = GPIO40
 // 13 = GPIO41
 // 15 = GPIO42
@@ -30,8 +30,8 @@
 // 19 = GPIO46
 // 21 = GPIO47
 // 23 = GPIO48
-// 25 = RX(GPIO43)
-// 27 = TX(GPIO44)
+// 25 = TX(GPIO44)
+// 27 = RX(GPIO43)
 // 29 = GND
 // 31 = 3V3
 //
@@ -40,28 +40,30 @@
 // 4  = GND     (Masse)
 // 6  = DN(GPIO19)
 // 8  = DP(GPIO20)
-// 10 = GPIO10
-// 12 = GPIO9
-// 14 = GPIO17
-// 16 = GPIO18
-// 18 = BOOT(GPIO0)
-// 20 = RST
-// 22 = PWR
-// 24 = SCL(GPIO7)
-// 26 = SDA(GPIO8)
-// 28 = GND
-// 30 = 3V3
+// 10 = GPIO11
+// 12 = GPIO10
+// 14 = GPIO9
+// 16 = GPIO17
+// 18 = GPIO18
+// 20 = BOOT(GPIO0)
+// 22 = RST
+// 24 = PWR
+// 26 = SCL(GPIO7)
+// 28 = SDA(GPIO8)
+// 30 = GND
+// 32 = 3V3
 
 // ============================================================================
 // GPIO GÉNÉRAUX DISPONIBLES
 // ============================================================================
-#define GPIO_EXT_9              9       // Broche 12
-#define GPIO_EXT_10             10      // Broche 10
-#define GPIO_EXT_17             17      // Broche 14
-#define GPIO_EXT_18             18      // Broche 16
+#define GPIO_EXT_9              9       // Broche 14
+#define GPIO_EXT_10             10      // Broche 12
+#define GPIO_EXT_11             11      // Broche 10
+#define GPIO_EXT_17             17      // Broche 16
+#define GPIO_EXT_18             18      // Broche 18
 #define GPIO_EXT_21             21      // Broche 5
-#define GPIO_EXT_37             37      // Broche 9
 #define GPIO_EXT_38             38      // Broche 7
+#define GPIO_EXT_39             39      // Broche 9
 #define GPIO_EXT_40             40      // Broche 11
 #define GPIO_EXT_41             41      // Broche 13
 #define GPIO_EXT_42             42      // Broche 15
@@ -73,8 +75,8 @@
 // ============================================================================
 // UART EXPOSÉ
 // ============================================================================
-#define GPIO_UART_TX            44      // Broche 27 - TX (GPIO43 dans doc, 44 IRL)
-#define GPIO_UART_RX            43      // Broche 25 - RX (GPIO44 dans doc, 43 IRL)
+#define GPIO_UART_TX            44      // Broche 25 - TX
+#define GPIO_UART_RX            43      // Broche 27 - RX
 
 // ============================================================================
 // I2C PRINCIPAL (déjà utilisé par Touch, IMU, RTC, Power)
@@ -110,19 +112,19 @@
 // ============================================================================
 /*
  * GPIO SÛRS pour vos projets (pas de conflit):
- * - GPIO 9, 10, 17, 18, 21, 37, 38, 40, 41, 42, 45, 46, 47, 48
+ * - GPIO 9, 10, 11, 17, 18, 21, 38, 39, 40, 41, 42, 45, 46, 47, 48
  *
  * GPIO À ÉVITER (déjà utilisés par le module):
  * - GPIO 0-8   : LCD, Touch, I2C, Backlight
- * - GPIO 11-16 : Audio I2S, SD Card
+ * - GPIO 12-16 : Audio I2S, SD Card
  * - GPIO 19-20 : USB
  *
  * Pour capteurs I2C:
  * - Utilisez GPIO 7 (SCL) et 8 (SDA) - bus partagé
  *
  * Pour UART externe:
- * - TX = GPIO 44 (broche 27)
- * - RX = GPIO 43 (broche 25)
+ * - TX = GPIO 44 (broche 25)
+ * - RX = GPIO 43 (broche 27)
  */
 
 #endif // GPIO_CONFIG_H
