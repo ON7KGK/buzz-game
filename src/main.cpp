@@ -29,15 +29,14 @@ LEDStrip led1(21, 38, 60);  // LED1: GPIO21 (DI), GPIO38 (CI), 60 LEDs
 LEDStrip led2(39, 40, 60);  // LED2: GPIO39 (DI), GPIO40 (CI), 60 LEDs - Côté 1 du carré
 LEDStrip led3(41, 42, 60);  // LED3: GPIO41 (DI), GPIO42 (CI), 60 LEDs - Côté 2 du carré
 LEDStrip led4(45, 46, 60);  // LED4: GPIO45 (DI), GPIO46 (CI), 60 LEDs - Côté 3 du carré
-LEDStrip led5(47, 48, 60);  // LED5: GPIO47 (DI), GPIO48 (CI), 60 LEDs - Côté 4 du carré
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION GPIO
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define PIN_PLOT_GAUCHE    11   // Plot de départ gauche
-#define PIN_PLOT_DROIT     10   // Plot de départ droit
-#define PIN_ANNEAU         9    // Anneau métallique (détecte contact avec serpentin GND)
+#define PIN_PLOT_GAUCHE    17   // Plot de départ gauche (broche 16)
+#define PIN_PLOT_DROIT     18   // Plot de départ droit (broche 18)
+#define PIN_ANNEAU         44   // Anneau métallique - touchette (broche 25)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ÉTATS DU JEU
@@ -255,11 +254,11 @@ void led1Bleu() {
     led1.show();
 }
 
-// Variable globale pour le rainbow synchronisé (partagée entre LED2-5)
+// Variable globale pour le rainbow synchronisé (partagée entre LED2-4)
 uint16_t rainbowHueGlobal = 0;
 
 void mettreAJourRainbowCarre() {
-    // Animation rainbow continue pour LED2, LED3, LED4, LED5 (carré synchronisé)
+    // Animation rainbow continue pour LED2, LED3, LED4 (3 côtés du carré)
     unsigned long maintenant = millis();
     if (maintenant - tempsRainbow >= INTERVALLE_RAINBOW) {
         tempsRainbow = maintenant;
@@ -270,8 +269,8 @@ void mettreAJourRainbowCarre() {
             rainbowHueGlobal = 0;
         }
 
-        // Total de LEDs pour le carré complet (4 côtés × 60 LEDs)
-        const uint16_t totalLeds = 240;
+        // Total de LEDs pour le carré (3 côtés × 60 LEDs)
+        const uint16_t totalLeds = 180;
 
         // LED2 - Côté 1 (LEDs 0-59)
         for (uint16_t i = 0; i < 60; i++) {
@@ -330,30 +329,10 @@ void mettreAJourRainbowCarre() {
             led4.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
         }
 
-        // LED5 - Côté 4 (LEDs 180-239)
-        for (uint16_t i = 0; i < 60; i++) {
-            uint16_t pixelHue = rainbowHueGlobal + ((i + 180) * 65536L / totalLeds);
-            uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
-            wheelPos = 255 - wheelPos;
-
-            uint32_t color;
-            if (wheelPos < 85) {
-                color = ((255 - wheelPos * 3) << 16) | (0 << 8) | (wheelPos * 3);
-            } else if (wheelPos < 170) {
-                wheelPos -= 85;
-                color = ((0) << 16) | ((wheelPos * 3) << 8) | (255 - wheelPos * 3);
-            } else {
-                wheelPos -= 170;
-                color = ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
-            }
-            led5.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
-        }
-
         // Afficher tous les strips en même temps
         led2.show();
         led3.show();
         led4.show();
-        led5.show();
     }
 }
 
@@ -556,10 +535,9 @@ void setup() {
     led2.begin();
     led3.begin();
     led4.begin();
-    led5.begin();
 
     led1Blanc();
-    // Initialiser le rainbow du carré (LED2-5)
+    // Initialiser le rainbow du carré (LED2-4)
     mettreAJourRainbowCarre();
 
     // Afficher message initial
@@ -574,7 +552,7 @@ void setup() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void loop() {
-    // Animation rainbow continue sur le carré (LED2-5)
+    // Animation rainbow continue sur le carré (LED2-4)
     mettreAJourRainbowCarre();
 
     // Machine à états
