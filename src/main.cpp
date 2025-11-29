@@ -34,9 +34,9 @@ LEDStrip led4(45, 46, 60);  // LED4: GPIO45 (DI), GPIO46 (CI), 60 LEDs - Côté 
 // CONFIGURATION GPIO
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define PIN_PLOT_GAUCHE    17   // Plot de départ gauche (broche 16)
-#define PIN_PLOT_DROIT     18   // Plot de départ droit (broche 18)
-#define PIN_ANNEAU         44   // Anneau métallique - touchette (broche 25)
+#define PIN_PLOT_GAUCHE    47   // Plot de départ gauche (broche 21)
+#define PIN_PLOT_DROIT     48   // Plot de départ droit (broche 23)
+#define PIN_ANNEAU         18   // Anneau métallique - touchette (broche 18)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ÉTATS DU JEU
