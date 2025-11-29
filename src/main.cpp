@@ -34,9 +34,9 @@ LEDStrip led4(45, 46, 60);  // LED4: GPIO45 (DI), GPIO46 (CI), 60 LEDs - Côté 
 // CONFIGURATION GPIO
 // ═══════════════════════════════════════════════════════════════════════════
 
-#define PIN_PLOT_GAUCHE    47   // Plot de départ gauche (broche 21)
-#define PIN_PLOT_DROIT     48   // Plot de départ droit (broche 23)
-#define PIN_ANNEAU         18   // Anneau métallique - touchette (broche 18)
+#define PIN_PLOT_GAUCHE    17   // Plot de départ gauche (broche 16)
+#define PIN_PLOT_DROIT     18   // Plot de départ droit (broche 18)
+#define PIN_ANNEAU         43   // Anneau métallique - touchette (broche 27 - TX)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ÉTATS DU JEU
@@ -344,6 +344,14 @@ void gererAttenteDepart() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
     bool pinAnneau = digitalRead(PIN_ANNEAU);
+
+    // Debug: afficher l'état des GPIO toutes les 500ms
+    static unsigned long dernierDebug = 0;
+    if (MONITEUR_ACTIF && millis() - dernierDebug >= 500) {
+        dernierDebug = millis();
+        Serial.printf("[DEBUG] GPIO17(Gauche)=%d, GPIO18(Droit)=%d, GPIO43(Anneau)=%d\n",
+                      pinGauche, pinDroit, pinAnneau);
+    }
 
     // Cas 1: Manche sur plot gauche
     if (pinGauche == LOW && pinDroit == HIGH) {
