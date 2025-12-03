@@ -71,7 +71,7 @@ const unsigned long DELAI_ABANDON = 2000;        // 2 secondes pour détecter ab
 const unsigned long INTERVALLE_RAINBOW = 3;     // 20ms entre mises à jour rainbow (vitesse LED2)
 
 // Configuration du moniteur série
-const bool MONITEUR_ACTIF = false;               // true = affichage des infos de debug, false = désactivé
+const bool MONITEUR_ACTIF = true;                // true = affichage des infos de debug, false = désactivé
 
 unsigned long tempsAbandon = 0;    // Timer pour détecter manche abandonné
 bool ecranAffiche = false;         // Flag pour éviter le clignotement
@@ -340,58 +340,94 @@ void mettreAJourRainbowCarre() {
 // MACHINE À ÉTATS - GESTION DU JEU
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Fonction pour reconfigurer les plots en mode jeu
+void configurerPlotsJeu() {
+    pinMode(PIN_PLOT_GAUCHE, INPUT_PULLUP);
+    pinMode(PIN_PLOT_DROIT, INPUT_PULLUP);
+    pinMode(PIN_ANNEAU, INPUT_PULLUP);
+}
+
+// Variable globale pour forcer la reconfiguration des plots
+bool forcerReconfigPlots = true;
+
 void gererAttenteDepart() {
-    bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
-    bool pinDroit = digitalRead(PIN_PLOT_DROIT);
+    // Configuration initiale : plots en OUTPUT HIGH, anneau en INPUT (pull-down externe requis)
+    if (forcerReconfigPlots) {
+        forcerReconfigPlots = false;
+        pinMode(PIN_PLOT_GAUCHE, OUTPUT);
+        digitalWrite(PIN_PLOT_GAUCHE, HIGH);  // 3.3V
+        pinMode(PIN_PLOT_DROIT, OUTPUT);
+        digitalWrite(PIN_PLOT_DROIT, HIGH);   // 3.3V
+        pinMode(PIN_ANNEAU, INPUT);           // Nécessite résistance 10kΩ vers GND
+        if (MONITEUR_ACTIF) Serial.println("[INIT] Plots configurés: OUTPUT HIGH, Anneau: INPUT");
+    }
+
     bool pinAnneau = digitalRead(PIN_ANNEAU);
 
-    // Debug: afficher l'état des GPIO toutes les 500ms
+    // Debug: afficher l'état toutes les 500ms
     static unsigned long dernierDebug = 0;
     if (MONITEUR_ACTIF && millis() - dernierDebug >= 500) {
         dernierDebug = millis();
-        Serial.printf("[DEBUG] GPIO17(Gauche)=%d, GPIO18(Droit)=%d, GPIO43(Anneau)=%d\n",
-                      pinGauche, pinDroit, pinAnneau);
+        Serial.printf("[DEBUG] Anneau=%d (HIGH=touche plot, LOW=libre/structure)\n", pinAnneau);
     }
 
-    // Cas 1: Manche sur plot gauche
-    if (pinGauche == LOW && pinDroit == HIGH) {
-        coteDepart = 1;
-        etatActuel = PRET_GAUCHE;
-        ecranAffiche = false; // Réinitialiser le flag
-        led1Bleu();  // LED1 bleu quand prêt
-        afficherTexte("Rejoins l'autre côté" ,"sans toucher");
-        tempsAbandon = 0;
-        return;
+    // Si l'anneau détecte HIGH = il touche un des plots (qui sont à 3.3V)
+    if (pinAnneau == HIGH) {
+        delay(10);  // Debounce
+
+        // Tester si c'est le plot gauche
+        pinMode(PIN_PLOT_GAUCHE, INPUT);
+        delay(5);
+        if (digitalRead(PIN_ANNEAU) == LOW) {
+            // C'était le plot gauche !
+            if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot GAUCHE détecté");
+            coteDepart = 1;
+            etatActuel = PRET_GAUCHE;
+            configurerPlotsJeu();  // Reconfigurer pour le jeu
+            led1Bleu();
+            afficherTexte("Rejoins l'autre côté", "sans toucher");
+            tempsAbandon = 0;
+            ecranAffiche = false;
+            return;
+        }
+
+        // Remettre plot gauche en OUTPUT HIGH
+        pinMode(PIN_PLOT_GAUCHE, OUTPUT);
+        digitalWrite(PIN_PLOT_GAUCHE, HIGH);
+
+        // Tester si c'est le plot droit
+        pinMode(PIN_PLOT_DROIT, INPUT);
+        delay(5);
+        if (digitalRead(PIN_ANNEAU) == LOW) {
+            // C'était le plot droit !
+            if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot DROIT détecté");
+            coteDepart = 2;
+            etatActuel = PRET_DROIT;
+            configurerPlotsJeu();  // Reconfigurer pour le jeu
+            led1Bleu();
+            afficherTexte("Rejoins l'autre côté", "sans toucher");
+            tempsAbandon = 0;
+            ecranAffiche = false;
+            return;
+        }
+
+        // Remettre plot droit en OUTPUT HIGH
+        pinMode(PIN_PLOT_DROIT, OUTPUT);
+        digitalWrite(PIN_PLOT_DROIT, HIGH);
     }
 
-    // Cas 2: Manche sur plot droit
-    if (pinGauche == HIGH && pinDroit == LOW) {
-        coteDepart = 2;
-        etatActuel = PRET_DROIT;
-        ecranAffiche = false; // Réinitialiser le flag
-        led1Bleu();  // LED1 bleu quand prêt
-        afficherTexte("Rejoins l'autre côté" , "sans toucher !");
-        tempsAbandon = 0;
-        return;
-    }
-
-    // Cas 3: Manche abandonné (touche le serpentin)
-    if (pinGauche == HIGH && pinDroit == HIGH && pinAnneau == LOW) {
-        // Démarrer le timer d'abandon si pas encore fait
+    // Anneau à LOW = libre ou sur structure
+    if (pinAnneau == LOW) {
+        // Démarrer timer d'abandon
         if (tempsAbandon == 0) {
             tempsAbandon = millis();
-            ecranAffiche = false; // Permettre un nouvel affichage
-        }
-        // Si abandonné pendant 2+ secondes, afficher UNE SEULE FOIS
-        else if (millis() - tempsAbandon >= DELAI_ABANDON && !ecranAffiche) {
+            ecranAffiche = false;
+        } else if (millis() - tempsAbandon >= DELAI_ABANDON && !ecranAffiche) {
             afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
             ecranAffiche = true;
         }
     } else {
         tempsAbandon = 0;
-        if (ecranAffiche) {
-            ecranAffiche = false;
-        }
     }
 }
 
@@ -516,6 +552,7 @@ void gererFinDePartie() {
             tempsAbandon = 0;
             ecranAffiche = false;
             messageRejouerAffiche = false;
+            forcerReconfigPlots = true;  // Forcer la reconfiguration des plots
 
             afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
             delay(300);  // Debounce touch
