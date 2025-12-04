@@ -340,85 +340,52 @@ void mettreAJourRainbowCarre() {
 // MACHINE À ÉTATS - GESTION DU JEU
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Fonction pour reconfigurer les plots en mode jeu
-void configurerPlotsJeu() {
-    pinMode(PIN_PLOT_GAUCHE, INPUT_PULLUP);
-    pinMode(PIN_PLOT_DROIT, INPUT_PULLUP);
-    pinMode(PIN_ANNEAU, INPUT_PULLUP);
-}
-
-// Variable globale pour forcer la reconfiguration des plots
-bool forcerReconfigPlots = true;
+// Version avec optocoupleurs - Logique simplifiée
+// Tous les GPIO en INPUT_PULLUP tout le temps
+// LOW = contact détecté (optocoupleur activé), HIGH = libre
 
 void gererAttenteDepart() {
-    // Configuration initiale : plots en OUTPUT HIGH, anneau en INPUT (pull-down externe requis)
-    if (forcerReconfigPlots) {
-        forcerReconfigPlots = false;
-        pinMode(PIN_PLOT_GAUCHE, OUTPUT);
-        digitalWrite(PIN_PLOT_GAUCHE, HIGH);  // 3.3V
-        pinMode(PIN_PLOT_DROIT, OUTPUT);
-        digitalWrite(PIN_PLOT_DROIT, HIGH);   // 3.3V
-        pinMode(PIN_ANNEAU, INPUT);           // Nécessite résistance 10kΩ vers GND
-        if (MONITEUR_ACTIF) Serial.println("[INIT] Plots configurés: OUTPUT HIGH, Anneau: INPUT");
-    }
-
-    bool pinAnneau = digitalRead(PIN_ANNEAU);
+    bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
+    bool pinDroit = digitalRead(PIN_PLOT_DROIT);
 
     // Debug: afficher l'état toutes les 500ms
     static unsigned long dernierDebug = 0;
     if (MONITEUR_ACTIF && millis() - dernierDebug >= 500) {
         dernierDebug = millis();
-        Serial.printf("[DEBUG] Anneau=%d (HIGH=touche plot, LOW=libre/structure)\n", pinAnneau);
+        Serial.printf("[DEBUG] Gauche=%d Droit=%d (LOW=contact)\n", pinGauche, pinDroit);
     }
 
-    // Si l'anneau détecte HIGH = il touche un des plots (qui sont à 3.3V)
-    if (pinAnneau == HIGH) {
+    // Détection du plot de départ (LOW = anneau en contact via optocoupleur)
+    if (pinGauche == LOW) {
         delay(10);  // Debounce
-
-        // Tester si c'est le plot gauche
-        pinMode(PIN_PLOT_GAUCHE, INPUT);
-        delay(5);
-        if (digitalRead(PIN_ANNEAU) == LOW) {
-            // C'était le plot gauche !
+        if (digitalRead(PIN_PLOT_GAUCHE) == LOW) {
             if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot GAUCHE détecté");
             coteDepart = 1;
             etatActuel = PRET_GAUCHE;
-            configurerPlotsJeu();  // Reconfigurer pour le jeu
             led1Bleu();
             afficherTexte("Rejoins l'autre côté", "sans toucher");
             tempsAbandon = 0;
             ecranAffiche = false;
             return;
         }
+    }
 
-        // Remettre plot gauche en OUTPUT HIGH
-        pinMode(PIN_PLOT_GAUCHE, OUTPUT);
-        digitalWrite(PIN_PLOT_GAUCHE, HIGH);
-
-        // Tester si c'est le plot droit
-        pinMode(PIN_PLOT_DROIT, INPUT);
-        delay(5);
-        if (digitalRead(PIN_ANNEAU) == LOW) {
-            // C'était le plot droit !
+    if (pinDroit == LOW) {
+        delay(10);  // Debounce
+        if (digitalRead(PIN_PLOT_DROIT) == LOW) {
             if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot DROIT détecté");
             coteDepart = 2;
             etatActuel = PRET_DROIT;
-            configurerPlotsJeu();  // Reconfigurer pour le jeu
             led1Bleu();
             afficherTexte("Rejoins l'autre côté", "sans toucher");
             tempsAbandon = 0;
             ecranAffiche = false;
             return;
         }
-
-        // Remettre plot droit en OUTPUT HIGH
-        pinMode(PIN_PLOT_DROIT, OUTPUT);
-        digitalWrite(PIN_PLOT_DROIT, HIGH);
     }
 
-    // Anneau à LOW = libre ou sur structure
-    if (pinAnneau == LOW) {
-        // Démarrer timer d'abandon
+    // Anneau libre (tous HIGH) - afficher message après délai
+    if (pinGauche == HIGH && pinDroit == HIGH) {
         if (tempsAbandon == 0) {
             tempsAbandon = millis();
             ecranAffiche = false;
@@ -434,7 +401,7 @@ void gererAttenteDepart() {
 void gererPretGauche() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
 
-    // Le joueur a soulevé le manche du plot gauche
+    // Le joueur a soulevé le manche du plot gauche (optocoupleur désactivé = HIGH)
     if (pinGauche == HIGH) {
         etatActuel = JEU_EN_COURS;
         tempsDebut = millis();
@@ -447,7 +414,7 @@ void gererPretGauche() {
 void gererPretDroit() {
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
 
-    // Le joueur a soulevé le manche du plot droit
+    // Le joueur a soulevé le manche du plot droit (optocoupleur désactivé = HIGH)
     if (pinDroit == HIGH) {
         etatActuel = JEU_EN_COURS;
         tempsDebut = millis();
@@ -552,7 +519,6 @@ void gererFinDePartie() {
             tempsAbandon = 0;
             ecranAffiche = false;
             messageRejouerAffiche = false;
-            forcerReconfigPlots = true;  // Forcer la reconfiguration des plots
 
             afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
             delay(300);  // Debounce touch
