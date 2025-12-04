@@ -340,9 +340,9 @@ void mettreAJourRainbowCarre() {
 // MACHINE À ÉTATS - GESTION DU JEU
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Version avec optocoupleurs - Logique simplifiée
-// Tous les GPIO en INPUT_PULLUP tout le temps
-// LOW = contact détecté (optocoupleur activé), HIGH = libre
+// Version avec optocoupleurs TLP281 + correction logique
+// Module VMA452: OUT suit IN (pas d'inversion grâce aux transistors)
+// HIGH = contact détecté (LED opto allumée), LOW = libre
 
 void gererAttenteDepart() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
@@ -352,13 +352,13 @@ void gererAttenteDepart() {
     static unsigned long dernierDebug = 0;
     if (MONITEUR_ACTIF && millis() - dernierDebug >= 500) {
         dernierDebug = millis();
-        Serial.printf("[DEBUG] Gauche=%d Droit=%d (LOW=contact)\n", pinGauche, pinDroit);
+        Serial.printf("[DEBUG] Gauche=%d Droit=%d (HIGH=contact)\n", pinGauche, pinDroit);
     }
 
-    // Détection du plot de départ (LOW = anneau en contact via optocoupleur)
-    if (pinGauche == LOW) {
+    // Détection du plot de départ (HIGH = anneau en contact via optocoupleur)
+    if (pinGauche == HIGH) {
         delay(10);  // Debounce
-        if (digitalRead(PIN_PLOT_GAUCHE) == LOW) {
+        if (digitalRead(PIN_PLOT_GAUCHE) == HIGH) {
             if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot GAUCHE détecté");
             coteDepart = 1;
             etatActuel = PRET_GAUCHE;
@@ -370,9 +370,9 @@ void gererAttenteDepart() {
         }
     }
 
-    if (pinDroit == LOW) {
+    if (pinDroit == HIGH) {
         delay(10);  // Debounce
-        if (digitalRead(PIN_PLOT_DROIT) == LOW) {
+        if (digitalRead(PIN_PLOT_DROIT) == HIGH) {
             if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot DROIT détecté");
             coteDepart = 2;
             etatActuel = PRET_DROIT;
@@ -384,8 +384,8 @@ void gererAttenteDepart() {
         }
     }
 
-    // Anneau libre (tous HIGH) - afficher message après délai
-    if (pinGauche == HIGH && pinDroit == HIGH) {
+    // Anneau libre (tous LOW) - afficher message après délai
+    if (pinGauche == LOW && pinDroit == LOW) {
         if (tempsAbandon == 0) {
             tempsAbandon = millis();
             ecranAffiche = false;
@@ -401,8 +401,8 @@ void gererAttenteDepart() {
 void gererPretGauche() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
 
-    // Le joueur a soulevé le manche du plot gauche (optocoupleur désactivé = HIGH)
-    if (pinGauche == HIGH) {
+    // Le joueur a soulevé le manche du plot gauche (optocoupleur désactivé = LOW)
+    if (pinGauche == LOW) {
         etatActuel = JEU_EN_COURS;
         tempsDebut = millis();
         compteur = 0;
@@ -414,8 +414,8 @@ void gererPretGauche() {
 void gererPretDroit() {
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
 
-    // Le joueur a soulevé le manche du plot droit (optocoupleur désactivé = HIGH)
-    if (pinDroit == HIGH) {
+    // Le joueur a soulevé le manche du plot droit (optocoupleur désactivé = LOW)
+    if (pinDroit == LOW) {
         etatActuel = JEU_EN_COURS;
         tempsDebut = millis();
         compteur = 0;
@@ -432,8 +432,8 @@ void gererJeuEnCours() {
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
     bool pinAnneau = digitalRead(PIN_ANNEAU);
 
-    // Scénario B: Touché le serpentin (défaite)
-    if (pinAnneau == LOW) {
+    // Scénario B: Touché le serpentin (défaite) - optocoupleur activé = HIGH
+    if (pinAnneau == HIGH) {
         etatActuel = DEFAITE;
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
@@ -456,11 +456,11 @@ void gererJeuEnCours() {
         return;
     }
 
-    // Scénario A: Victoire (arrivée au côté opposé)
+    // Scénario A: Victoire (arrivée au côté opposé) - optocoupleur activé = HIGH
     bool victoire = false;
-    if (coteDepart == 1 && pinDroit == LOW) {
+    if (coteDepart == 1 && pinDroit == HIGH) {
         victoire = true;  // Parti de gauche, arrivé à droite
-    } else if (coteDepart == 2 && pinGauche == LOW) {
+    } else if (coteDepart == 2 && pinGauche == HIGH) {
         victoire = true;  // Parti de droite, arrivé à gauche
     }
 

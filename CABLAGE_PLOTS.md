@@ -51,24 +51,28 @@ PLOT DROIT ──→ [LED Opto 3] ──[220Ω]──→ GND
 
 ## Fonctionnement
 
-### Logique simplifiée
+### Logique simplifiée (VMA452 avec correction)
 
 **Tous les GPIO en INPUT_PULLUP en permanence**
 
-| Situation | LED Opto | Transistor | GPIO ESP32 |
-|-----------|----------|------------|------------|
-| Anneau libre | Éteinte | Bloqué | HIGH (pull-up) |
-| Anneau touche plot/structure | Allumée | Passant | LOW (à GND) |
+Le module VMA452 utilise des **transistors de correction** qui inversent la logique standard:
+
+| Situation | LED Opto | Sortie VMA452 | GPIO ESP32 |
+|-----------|----------|---------------|------------|
+| Anneau libre | Éteinte | LOW | LOW |
+| Anneau touche plot/structure | Allumée | HIGH | HIGH |
+
+⚠️ **Important**: OUT suit IN (pas d'inversion comme un optocoupleur classique)
 
 ### Phase "Attente démarrage"
-1. Anneau libre → Tous GPIO = **HIGH**
-2. Anneau touche plot gauche → GPIO 17 = **LOW** → Jeu prêt à gauche
-3. Anneau touche plot droit → GPIO 18 = **LOW** → Jeu prêt à droite
+1. Anneau libre → Tous GPIO = **LOW**
+2. Anneau touche plot gauche → GPIO 17 = **HIGH** → Jeu prêt à gauche
+3. Anneau touche plot droit → GPIO 18 = **HIGH** → Jeu prêt à droite
 
 ### Phase "Jeu en cours"
-1. Anneau libre → GPIO 43 = **HIGH**
-2. Anneau touche structure → GPIO 43 = **LOW** → **Touchette détectée!**
-3. Anneau atteint plot opposé → GPIO opposé = **LOW** → **Victoire!**
+1. Anneau libre → GPIO 43 = **LOW**
+2. Anneau touche structure → GPIO 43 = **HIGH** → **Touchette détectée!**
+3. Anneau atteint plot opposé → GPIO opposé = **HIGH** → **Victoire!**
 
 ## Avantages de cette solution
 
@@ -84,7 +88,7 @@ PLOT DROIT ──→ [LED Opto 3] ──[220Ω]──→ GND
 ### Test 1 : Démarrage à gauche
 1. Poser l'anneau sur le plot gauche
 2. → LED Opto 2 s'allume
-3. → GPIO 17 = LOW
+3. → GPIO 17 = **HIGH**
 4. → LED1 devient **bleue**
 5. → Message "Rejoins l'autre côté sans toucher"
 6. Soulever l'anneau → le jeu démarre
@@ -92,7 +96,7 @@ PLOT DROIT ──→ [LED Opto 3] ──[220Ω]──→ GND
 ### Test 2 : Démarrage à droite
 1. Poser l'anneau sur le plot droit
 2. → LED Opto 3 s'allume
-3. → GPIO 18 = LOW
+3. → GPIO 18 = **HIGH**
 4. → LED1 devient **bleue**
 5. → Message "Rejoins l'autre côté sans toucher"
 6. Soulever l'anneau → le jeu démarre
@@ -101,7 +105,7 @@ PLOT DROIT ──→ [LED Opto 3] ──[220Ω]──→ GND
 1. Démarrer une partie
 2. Toucher la structure avec l'anneau
 3. → LED Opto 1 s'allume
-4. → GPIO 43 = LOW
+4. → GPIO 43 = **HIGH**
 5. → LED1 devient **rouge**
 6. → Son "touchette7.mp3"
 7. → Message "OH! non tu as touché"
@@ -110,7 +114,7 @@ PLOT DROIT ──→ [LED Opto 3] ──[220Ω]──→ GND
 1. Démarrer à gauche
 2. Atteindre le plot droit sans toucher
 3. → LED Opto 3 s'allume
-4. → GPIO 18 = LOW
+4. → GPIO 18 = **HIGH**
 5. → LED1 devient **verte**
 6. → Son "gagne2.mp3"
 7. → Message "Bravo, tu as gagné en X.X s"
