@@ -66,9 +66,9 @@ unsigned long tempsRainbow = 0;    // Temps pour animation rainbow LED2
 uint8_t luminositeLED1 = 128;      // Luminosité LED1 (0-255, ajustable)
 
 const unsigned long TIMEOUT_JEU = 60000;         // 60 secondes
-const unsigned long DELAI_MESSAGE = 2000;        // 2 secondes pour messages
+const unsigned long DELAI_MESSAGE = 4000;        // 4 secondes pour laisser le son jouer
 const unsigned long DELAI_ABANDON = 2000;        // 2 secondes pour détecter abandon
-const unsigned long INTERVALLE_RAINBOW = 3;     // 20ms entre mises à jour rainbow (vitesse LED2)
+const unsigned long INTERVALLE_RAINBOW = 3;      // 3ms entre mises à jour rainbow (vitesse LED2)
 
 // Configuration du moniteur série
 const bool MONITEUR_ACTIF = true;                // true = affichage des infos de debug, false = désactivé
@@ -76,6 +76,7 @@ const bool MONITEUR_ACTIF = true;                // true = affichage des infos d
 unsigned long tempsAbandon = 0;    // Timer pour détecter manche abandonné
 bool ecranAffiche = false;         // Flag pour éviter le clignotement
 bool messageRejouerAffiche = false; // Flag pour message "Pour rejouer"
+bool touchActif = false;           // Flag pour activer la détection touch après relâchement
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
@@ -147,6 +148,7 @@ void afficherCompteur() {
     unsigned long secondes = compteur / 1000;
     unsigned long dixiemes = (compteur % 1000) / 100;
     static unsigned long derniereDixieme = 9999; // Valeur impossible au départ
+    static char dernierTexte[16] = "";
 
     // Calculer une valeur combinée pour détecter les changements
     unsigned long valeurActuelle = secondes * 10 + dixiemes;
@@ -163,26 +165,33 @@ void afficherCompteur() {
     canvas->setFont(&FreeSansBold72pt7b);
     canvas->setTextSize(1);
 
-    // Formater le texte avec un espace fixe (alignement à droite sur 2 chiffres)
     char texte[16];
-    sprintf(texte, "%2lu.%lu", secondes, dixiemes);
+    sprintf(texte, "%lu.%lu", secondes, dixiemes);
 
-    // Effacer une zone rectangulaire fixe au centre
-    canvas->fillRect(50, 60, 380, 200, BLACK);
-
-    // Position FIXE au centre pour éviter le mouvement
-    // On utilise la largeur maximale possible "60.0" pour centrer
+    // Centrer parfaitement
     int16_t x1, y1;
     uint16_t w, h;
+
+    // Effacer l'ancien texte en noir
+    if (strlen(dernierTexte) > 0) {
+        canvas->setTextColor(BLACK);
+        canvas->getTextBounds(dernierTexte, 0, 0, &x1, &y1, &w, &h);
+        int16_t x = (480 - w) / 2 - x1;
+        int16_t y = (320 - h) / 2 - y1;
+        canvas->setCursor(x, y);
+        canvas->print(dernierTexte);
+    }
+
+    // Afficher le nouveau texte en jaune
     canvas->setTextColor(YELLOW);
-
-    // Calculer la position basée sur la largeur max "60.0"
-    canvas->getTextBounds("60.0", 0, 0, &x1, &y1, &w, &h);
-    int16_t x_fixe = (480 - w) / 2 - x1;
-    int16_t y_fixe = (320 - h) / 2 - y1;
-
-    canvas->setCursor(x_fixe, y_fixe);
+    canvas->getTextBounds(texte, 0, 0, &x1, &y1, &w, &h);
+    int16_t x = (480 - w) / 2 - x1;
+    int16_t y = (320 - h) / 2 - y1;
+    canvas->setCursor(x, y);
     canvas->print(texte);
+
+    // Sauvegarder le texte actuel pour l'effacer la prochaine fois
+    strcpy(dernierTexte, texte);
 
     display.flush();
 }
@@ -213,13 +222,12 @@ void afficherResultat(const char* ligne1, const char* ligne2, const char* ligne3
         canvas->print(l2);
     }
 
-    // Ligne 3 (instruction rejouer) - Police 14pt avec accents pour éviter retour à la ligne
+    // Ligne 3 (instruction rejouer)
     if (ligne3) {
-        canvas->setFont(&FreeSansBold14pt8b);  // Police 14pt avec accents
         String l3 = utf8ToLatin1(ligne3);
         canvas->getTextBounds(l3.c_str(), 0, 0, &x1, &y1, &w, &h);
         x = (480 - w) / 2 - x1;
-        canvas->setCursor(x, 205);  // Ajuster la position Y
+        canvas->setCursor(x, 200);
         canvas->print(l3);
     }
 
@@ -257,14 +265,14 @@ void led1Bleu() {
 // Variable globale pour le rainbow synchronisé (partagée entre LED2-4)
 uint16_t rainbowHueGlobal = 0;
 
-void mettreAJourRainbowCarre() {
+void mettreAJourLED2() {
     // Animation rainbow continue pour LED2, LED3, LED4 (3 côtés du carré)
     unsigned long maintenant = millis();
-    if (maintenant - tempsRainbow >= INTERVALLE_RAINBOW) {
+    if (maintenant - tempsRainbow >= 3) {  // Plus rapide : 3ms
         tempsRainbow = maintenant;
 
         // Incrémenter la teinte globale
-        rainbowHueGlobal += 256; // Vitesse de rotation
+        rainbowHueGlobal += 256;
         if (rainbowHueGlobal >= 65536) {
             rainbowHueGlobal = 0;
         }
@@ -272,22 +280,25 @@ void mettreAJourRainbowCarre() {
         // Total de LEDs pour le carré (3 côtés × 60 LEDs)
         const uint16_t totalLeds = 180;
 
+        // Fonction wheel locale
+        auto wheel = [](byte wheelPos) -> uint32_t {
+            wheelPos = 255 - wheelPos;
+            if (wheelPos < 85) {
+                return ((255 - wheelPos * 3) << 16) | (0 << 8) | (wheelPos * 3);
+            }
+            if (wheelPos < 170) {
+                wheelPos -= 85;
+                return ((0) << 16) | ((wheelPos * 3) << 8) | (255 - wheelPos * 3);
+            }
+            wheelPos -= 170;
+            return ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
+        };
+
         // LED2 - Côté 1 (LEDs 0-59)
         for (uint16_t i = 0; i < 60; i++) {
             uint16_t pixelHue = rainbowHueGlobal + (i * 65536L / totalLeds);
             uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
-            wheelPos = 255 - wheelPos;
-
-            uint32_t color;
-            if (wheelPos < 85) {
-                color = ((255 - wheelPos * 3) << 16) | (0 << 8) | (wheelPos * 3);
-            } else if (wheelPos < 170) {
-                wheelPos -= 85;
-                color = ((0) << 16) | ((wheelPos * 3) << 8) | (255 - wheelPos * 3);
-            } else {
-                wheelPos -= 170;
-                color = ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
-            }
+            uint32_t color = wheel(wheelPos);
             led2.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
         }
 
@@ -295,18 +306,7 @@ void mettreAJourRainbowCarre() {
         for (uint16_t i = 0; i < 60; i++) {
             uint16_t pixelHue = rainbowHueGlobal + ((i + 60) * 65536L / totalLeds);
             uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
-            wheelPos = 255 - wheelPos;
-
-            uint32_t color;
-            if (wheelPos < 85) {
-                color = ((255 - wheelPos * 3) << 16) | (0 << 8) | (wheelPos * 3);
-            } else if (wheelPos < 170) {
-                wheelPos -= 85;
-                color = ((0) << 16) | ((wheelPos * 3) << 8) | (255 - wheelPos * 3);
-            } else {
-                wheelPos -= 170;
-                color = ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
-            }
+            uint32_t color = wheel(wheelPos);
             led3.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
         }
 
@@ -314,18 +314,7 @@ void mettreAJourRainbowCarre() {
         for (uint16_t i = 0; i < 60; i++) {
             uint16_t pixelHue = rainbowHueGlobal + ((i + 120) * 65536L / totalLeds);
             uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
-            wheelPos = 255 - wheelPos;
-
-            uint32_t color;
-            if (wheelPos < 85) {
-                color = ((255 - wheelPos * 3) << 16) | (0 << 8) | (wheelPos * 3);
-            } else if (wheelPos < 170) {
-                wheelPos -= 85;
-                color = ((0) << 16) | ((wheelPos * 3) << 8) | (255 - wheelPos * 3);
-            } else {
-                wheelPos -= 170;
-                color = ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
-            }
+            uint32_t color = wheel(wheelPos);
             led4.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
         }
 
@@ -340,26 +329,15 @@ void mettreAJourRainbowCarre() {
 // MACHINE À ÉTATS - GESTION DU JEU
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Version avec optocoupleurs TLP281 + correction logique
-// Module VMA452: OUT suit IN (pas d'inversion grâce aux transistors)
-// HIGH = contact détecté (LED opto allumée), LOW = libre
-
 void gererAttenteDepart() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
 
-    // Debug: afficher l'état toutes les 500ms
-    static unsigned long dernierDebug = 0;
-    if (MONITEUR_ACTIF && millis() - dernierDebug >= 500) {
-        dernierDebug = millis();
-        Serial.printf("[DEBUG] Gauche=%d Droit=%d (HIGH=contact)\n", pinGauche, pinDroit);
-    }
-
-    // Détection du plot de départ (HIGH = anneau en contact via optocoupleur)
+    // VMA452: HIGH = contact, LOW = libre
+    // Cas 1: Anneau touche plot gauche
     if (pinGauche == HIGH) {
         delay(10);  // Debounce
         if (digitalRead(PIN_PLOT_GAUCHE) == HIGH) {
-            if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot GAUCHE détecté");
             coteDepart = 1;
             etatActuel = PRET_GAUCHE;
             led1Bleu();
@@ -370,10 +348,10 @@ void gererAttenteDepart() {
         }
     }
 
+    // Cas 2: Anneau touche plot droit
     if (pinDroit == HIGH) {
         delay(10);  // Debounce
         if (digitalRead(PIN_PLOT_DROIT) == HIGH) {
-            if (MONITEUR_ACTIF) Serial.println("[DETECT] Plot DROIT détecté");
             coteDepart = 2;
             etatActuel = PRET_DROIT;
             led1Bleu();
@@ -384,7 +362,7 @@ void gererAttenteDepart() {
         }
     }
 
-    // Anneau libre (tous LOW) - afficher message après délai
+    // Cas 3: Anneau libre (tous LOW) - afficher message après délai
     if (pinGauche == LOW && pinDroit == LOW) {
         if (tempsAbandon == 0) {
             tempsAbandon = millis();
@@ -489,10 +467,25 @@ void gererJeuEnCours() {
 }
 
 void gererFinDePartie() {
-    // Attendre 2 secondes avant d'afficher "Pour rejouer"
-    if (millis() - tempsMessage >= DELAI_MESSAGE) {
+    unsigned long tempsEcoule = millis() - tempsMessage;
+
+    // Debug: afficher le temps écoulé toutes les 500ms
+    if (MONITEUR_ACTIF) {
+        static unsigned long dernierDebug = 0;
+        if (millis() - dernierDebug >= 500) {
+            dernierDebug = millis();
+            Serial.printf("[FIN] Attente... %lu / %lu ms (rejouer=%d, touch=%d, actif=%d)\n",
+                         tempsEcoule, DELAI_MESSAGE, messageRejouerAffiche,
+                         touch.isTouched(), touchActif);
+        }
+    }
+
+    // Attendre 4 secondes avant d'afficher "Pour rejouer"
+    if (tempsEcoule >= DELAI_MESSAGE) {
         // Ajouter le message "Pour rejouer" UNE SEULE FOIS
         if (!messageRejouerAffiche) {
+            if (MONITEUR_ACTIF) Serial.println("[FIN] Affichage message 'Pour rejouer'");
+
             if (etatActuel == VICTOIRE) {
                 unsigned long secondes = compteur / 1000;
                 unsigned long dixiemes = (compteur % 1000) / 100;
@@ -505,10 +498,19 @@ void gererFinDePartie() {
                 afficherResultat("Le temps est écoulé", nullptr, "Pour rejouer appuie sur l'écran");
             }
             messageRejouerAffiche = true;
+            touchActif = false;  // Désactiver le touch jusqu'au relâchement
         }
 
-        // Détecter le touch pour redémarrer
-        if (touch.isTouched()) {
+        // Activer le touch après relâchement
+        if (!touchActif && !touch.isTouched()) {
+            touchActif = true;
+            if (MONITEUR_ACTIF) Serial.println("[FIN] Touch activé (écran relâché)");
+        }
+
+        // Détecter le touch pour redémarrer (seulement si activé)
+        if (touchActif && touch.isTouched()) {
+            if (MONITEUR_ACTIF) Serial.println("[FIN] Touch détecté - Redémarrage");
+
             // Éteindre rouge/vert, rallumer blanc
             led1Blanc();
 
@@ -519,6 +521,7 @@ void gererFinDePartie() {
             tempsAbandon = 0;
             ecranAffiche = false;
             messageRejouerAffiche = false;
+            touchActif = false;
 
             afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
             delay(300);  // Debounce touch
@@ -548,8 +551,7 @@ void setup() {
     led4.begin();
 
     led1Blanc();
-    // Initialiser le rainbow du carré (LED2-4)
-    mettreAJourRainbowCarre();
+    // Initialiser le rainbow du carré (LED2-4) sera fait dans loop()
 
     // Afficher message initial
     afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
@@ -563,8 +565,8 @@ void setup() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void loop() {
-    // Animation rainbow continue sur le carré (LED2-4)
-    mettreAJourRainbowCarre();
+    // Animation LED2 rainbow continue
+    mettreAJourLED2();
 
     // Machine à états
     switch (etatActuel) {
