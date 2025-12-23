@@ -14,6 +14,10 @@
 #include "init.h"
 #include "fonts.h"
 #include "drivers/LEDStrip.h"
+#include "config/display_config.h"
+
+// Définition du rouge plus lumineux (RGB565: rouge max + un peu de vert)
+#define BRIGHT_RED RGB565(255, 32, 0)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OBJETS GLOBAUX
@@ -63,12 +67,13 @@ unsigned long compteur = 0;        // Compteur en millisecondes
 unsigned long tempsDebut = 0;      // Temps du début du jeu
 unsigned long tempsMessage = 0;    // Temps d'affichage des messages
 unsigned long tempsRainbow = 0;    // Temps pour animation rainbow LED2
-uint8_t luminositeLED1 = 128;      // Luminosité LED1 (0-255, ajustable)
+uint8_t luminositeLED1 = 200;      // Luminosité LED1 (0-255, ajustable)
+uint8_t luminositeLED234 = 200;   // Luminosité LED2-4 (0-255, ajustable)
 
 const unsigned long TIMEOUT_JEU = 60000;         // 60 secondes
-const unsigned long DELAI_MESSAGE = 4000;        // 4 secondes pour laisser le son jouer
+const unsigned long DELAI_MESSAGE = 7000;        // ⚙️ CONFIGURABLE: Délai avant redémarrage auto (en ms)
 const unsigned long DELAI_ABANDON = 2000;        // 2 secondes pour détecter abandon
-const unsigned long INTERVALLE_RAINBOW = 3;      // 3ms entre mises à jour rainbow (vitesse LED2)
+const unsigned long INTERVALLE_RAINBOW = 1;      // 1ms entre mises à jour rainbow (vitesse LED2)
 
 // Configuration du moniteur série
 const bool MONITEUR_ACTIF = true;                // true = affichage des infos de debug, false = désactivé
@@ -77,6 +82,11 @@ unsigned long tempsAbandon = 0;    // Timer pour détecter manche abandonné
 bool ecranAffiche = false;         // Flag pour éviter le clignotement
 bool messageRejouerAffiche = false; // Flag pour message "Pour rejouer"
 bool touchActif = false;           // Flag pour activer la détection touch après relâchement
+
+// Variables pour l'effet de pulsation LED1 verte (victoire)
+unsigned long tempsPulsation = 0;  // Timer pour la pulsation
+uint8_t luminositeVictoire = 30;   // Luminosité actuelle pour la pulsation
+bool pulsationMontante = true;     // Direction de la pulsation
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
@@ -148,7 +158,6 @@ void afficherCompteur() {
     unsigned long secondes = compteur / 1000;
     unsigned long dixiemes = (compteur % 1000) / 100;
     static unsigned long derniereDixieme = 9999; // Valeur impossible au départ
-    static char dernierTexte[16] = "";
 
     // Calculer une valeur combinée pour détecter les changements
     unsigned long valeurActuelle = secondes * 10 + dixiemes;
@@ -161,75 +170,130 @@ void afficherCompteur() {
 
     auto canvas = display.getCanvas();
 
+    // Effacer toute la zone centrale (rectangle noir fixe)
+    canvas->fillRect(0, 60, 480, 200, BLACK);
+
     // Police FreeSansBold72pt7b pour le compteur
     canvas->setFont(&FreeSansBold72pt7b);
     canvas->setTextSize(1);
 
+    // Format du texte à afficher
     char texte[16];
-    sprintf(texte, "%lu.%lu", secondes, dixiemes);
+    sprintf(texte, "%02lu.%lu", secondes, dixiemes);
 
-    // Centrer parfaitement
     int16_t x1, y1;
     uint16_t w, h;
 
-    // Effacer l'ancien texte en noir
-    if (strlen(dernierTexte) > 0) {
-        canvas->setTextColor(BLACK);
-        canvas->getTextBounds(dernierTexte, 0, 0, &x1, &y1, &w, &h);
+    // Avant 10 secondes: masquer le premier 0 et décaler vers la gauche
+    if (secondes < 10) {
+        // Calculer position basée sur "9.9"
+        canvas->getTextBounds("9.9", 0, 0, &x1, &y1, &w, &h);
         int16_t x = (480 - w) / 2 - x1;
         int16_t y = (320 - h) / 2 - y1;
+
+        // Calculer la largeur d'un caractère "0"
+        int16_t x1_zero, y1_zero;
+        uint16_t w_zero, h_zero;
+        canvas->getTextBounds("0", 0, 0, &x1_zero, &y1_zero, &w_zero, &h_zero);
+
+        // Décaler la position de départ d'un caractère vers la gauche
+        x -= (w_zero - x1_zero);
+
+        // Afficher le premier 0 en noir (masqué)
+        canvas->setTextColor(BLACK);
         canvas->setCursor(x, y);
-        canvas->print(dernierTexte);
+        canvas->print("0");
+
+        // Afficher le reste en jaune, décalé d'un caractère vers la gauche
+        canvas->setTextColor(YELLOW);
+        canvas->setCursor(x + w_zero - x1_zero, y);
+        canvas->print(&texte[1]);  // Afficher à partir du 2e caractère
     }
+    // Après 10 secondes: afficher normalement
+    else {
+        canvas->getTextBounds("00.0", 0, 0, &x1, &y1, &w, &h);
+        int16_t x = (480 - w) / 2 - x1;
+        int16_t y = (320 - h) / 2 - y1;
 
-    // Afficher le nouveau texte en jaune
-    canvas->setTextColor(YELLOW);
-    canvas->getTextBounds(texte, 0, 0, &x1, &y1, &w, &h);
-    int16_t x = (480 - w) / 2 - x1;
-    int16_t y = (320 - h) / 2 - y1;
-    canvas->setCursor(x, y);
-    canvas->print(texte);
-
-    // Sauvegarder le texte actuel pour l'effacer la prochaine fois
-    strcpy(dernierTexte, texte);
+        canvas->setTextColor(YELLOW);
+        canvas->setCursor(x, y);
+        canvas->print(texte);
+    }
 
     display.flush();
 }
 
-void afficherResultat(const char* ligne1, const char* ligne2, const char* ligne3) {
+void afficherDefaite() {
     display.clear(BLACK);
     auto canvas = display.getCanvas();
 
-    canvas->setTextColor(YELLOW);
+    canvas->setTextColor(BRIGHT_RED);  // Utiliser rouge plus lumineux
     canvas->setFont(&FreeSansBold18ptAccents7b);
     canvas->setTextSize(1);
 
-    // Ligne 1 (gros message)
-    String l1 = utf8ToLatin1(ligne1);
+    // Message "OH! non tu as touché" centré verticalement et horizontalement
+    String message = utf8ToLatin1("OH! non tu as touché");
     int16_t x1, y1;
     uint16_t w, h;
-    canvas->getTextBounds(l1.c_str(), 0, 0, &x1, &y1, &w, &h);
+    canvas->getTextBounds(message.c_str(), 0, 0, &x1, &y1, &w, &h);
     int16_t x = (480 - w) / 2 - x1;
-    canvas->setCursor(x, 120);
-    canvas->print(l1);
+    int16_t y = (320 - h) / 2 - y1;  // Centré verticalement
+    canvas->setCursor(x, y);
+    canvas->print(message);
 
-    // Ligne 2 (temps ou message)
-    if (ligne2) {
-        String l2 = utf8ToLatin1(ligne2);
-        canvas->getTextBounds(l2.c_str(), 0, 0, &x1, &y1, &w, &h);
-        x = (480 - w) / 2 - x1;
-        canvas->setCursor(x, 160);
-        canvas->print(l2);
-    }
+    display.flush();
+}
 
-    // Ligne 3 (instruction rejouer)
-    if (ligne3) {
-        String l3 = utf8ToLatin1(ligne3);
-        canvas->getTextBounds(l3.c_str(), 0, 0, &x1, &y1, &w, &h);
-        x = (480 - w) / 2 - x1;
-        canvas->setCursor(x, 200);
-        canvas->print(l3);
-    }
+void afficherTimeout() {
+    display.clear(BLACK);
+    auto canvas = display.getCanvas();
+
+    canvas->setTextColor(BRIGHT_RED);  // Utiliser rouge plus lumineux
+    canvas->setFont(&FreeSansBold18ptAccents7b);
+    canvas->setTextSize(1);
+
+    // Message "Le temps est écoulé" centré verticalement et horizontalement
+    String message = utf8ToLatin1("Le temps est écoulé");
+    int16_t x1, y1;
+    uint16_t w, h;
+    canvas->getTextBounds(message.c_str(), 0, 0, &x1, &y1, &w, &h);
+    int16_t x = (480 - w) / 2 - x1;
+    int16_t y = (320 - h) / 2 - y1;  // Centré verticalement
+    canvas->setCursor(x, y);
+    canvas->print(message);
+
+    display.flush();
+}
+
+void afficherVictoire(unsigned long secondes, unsigned long dixiemes) {
+    display.clear(BLACK);
+    auto canvas = display.getCanvas();
+
+    canvas->setTextColor(GREEN);
+
+    // Grand "BRAVO !" en haut (police 54pt)
+    canvas->setFont(&FreeSansBold54pt7b);
+    canvas->setTextSize(1);
+
+    String bravo = utf8ToLatin1("BRAVO !");
+    int16_t x1, y1;
+    uint16_t w, h;
+    canvas->getTextBounds(bravo.c_str(), 0, 0, &x1, &y1, &w, &h);
+    int16_t x = (480 - w) / 2 - x1;
+    int16_t y = 90 - y1;  // Première partie de la hauteur
+    canvas->setCursor(x, y);
+    canvas->print(bravo);
+
+    // Message temps en dessous (police 18pt)
+    canvas->setFont(&FreeSansBold18ptAccents7b);
+    canvas->setTextSize(1);
+    char messageTemps[64];
+    sprintf(messageTemps, "Tu as gagné en %lu.%lu s", secondes, dixiemes);
+    String temps = utf8ToLatin1(messageTemps);
+    canvas->getTextBounds(temps.c_str(), 0, 0, &x1, &y1, &w, &h);
+    x = (480 - w) / 2 - x1;
+    canvas->setCursor(x, 220);  // Plus bas que le BRAVO!
+    canvas->print(temps);
 
     display.flush();
 }
@@ -260,6 +324,36 @@ void led1Bleu() {
     led1.setBrightness(luminositeLED1);
     led1.fill(0, 0, 255);
     led1.show();
+}
+
+// Effet de pulsation pour la LED1 verte (victoire)
+void pulserLED1Vert() {
+    unsigned long maintenant = millis();
+
+    // Mise à jour toutes les 5ms pour un effet plus rapide
+    if (maintenant - tempsPulsation >= 5) {
+        tempsPulsation = maintenant;
+
+        // Augmenter ou diminuer la luminosité
+        if (pulsationMontante) {
+            luminositeVictoire += 10;  // Vitesse de montée
+            if (luminositeVictoire >= 250) {
+                luminositeVictoire = 250;
+                pulsationMontante = false;  // Inverser la direction
+            }
+        } else {
+            luminositeVictoire -= 10;  // Vitesse de descente
+            if (luminositeVictoire <= 30) {
+                luminositeVictoire = 30;
+                pulsationMontante = true;  // Inverser la direction
+            }
+        }
+
+        // Appliquer la luminosité
+        led1.setBrightness(luminositeVictoire);
+        led1.fill(0, 255, 0);
+        led1.show();
+    }
 }
 
 // Variable globale pour le rainbow synchronisé (partagée entre LED2-4)
@@ -293,6 +387,11 @@ void mettreAJourLED2() {
             wheelPos -= 170;
             return ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
         };
+
+        // Appliquer luminosité aux LED2-4
+        led2.setBrightness(luminositeLED234);
+        led3.setBrightness(luminositeLED234);
+        led4.setBrightness(luminositeLED234);
 
         // LED2 - Côté 1 (LEDs 0-59)
         for (uint16_t i = 0; i < 60; i++) {
@@ -406,20 +505,34 @@ void gererJeuEnCours() {
     // Mettre à jour le compteur
     compteur = millis() - tempsDebut;
 
+    // Délai de stabilisation: ignorer les détections pendant les 100 premières ms
+    if (compteur < 100) {
+        // Afficher le compteur mais ne pas détecter de touchette
+        static unsigned long dernierAffichage = 0;
+        if (millis() - dernierAffichage >= 100) {
+            dernierAffichage = millis();
+            afficherCompteur();
+        }
+        return;
+    }
+
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
     bool pinAnneau = digitalRead(PIN_ANNEAU);
 
     // Scénario B: Touché le serpentin (défaite) - optocoupleur activé = HIGH
+    // Debounce: vérifier 2 fois à 10ms d'intervalle pour éviter les faux positifs
     if (pinAnneau == HIGH) {
-        etatActuel = DEFAITE;
-        tempsMessage = millis();
-        messageRejouerAffiche = false; // Réinitialiser pour nouveau message
-        led1Rouge();
-        if (MONITEUR_ACTIF) Serial.println("[AUDIO] Lecture: /audio/touchette7.mp3");
-        audio.play("/audio/touchette7.mp3");
-        afficherResultat("OH! non tu as touché", nullptr, nullptr);
-        return;
+        delay(10);  // Attendre 10ms
+        if (digitalRead(PIN_ANNEAU) == HIGH) {  // Vérifier à nouveau
+            etatActuel = DEFAITE;
+            tempsMessage = millis();
+            messageRejouerAffiche = false; // Réinitialiser pour nouveau message
+            led1Rouge();
+            audio.play("/audio/touchette7.mp3");
+            afficherDefaite();
+            return;
+        }
     }
 
     // Scénario C: Timeout 60 secondes
@@ -428,9 +541,8 @@ void gererJeuEnCours() {
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
         led1Rouge();
-        if (MONITEUR_ACTIF) Serial.println("[AUDIO] Lecture: /audio/erreur.mp3");
         audio.play("/audio/erreur.mp3");
-        afficherResultat("Le temps est écoulé", nullptr, nullptr);
+        afficherTimeout();
         return;
     }
 
@@ -447,14 +559,11 @@ void gererJeuEnCours() {
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
         led1Vert();
-        if (MONITEUR_ACTIF) Serial.println("[AUDIO] Lecture: /audio/gagne2.mp3");
         audio.play("/audio/gagne2.mp3");
 
         unsigned long secondes = compteur / 1000;
         unsigned long dixiemes = (compteur % 1000) / 100;
-        char ligne1[64];
-        sprintf(ligne1, "Bravo, tu as gagné en %lu.%lu s", secondes, dixiemes);
-        afficherResultat(ligne1, nullptr, nullptr);
+        afficherVictoire(secondes, dixiemes);
         return;
     }
 
@@ -467,65 +576,29 @@ void gererJeuEnCours() {
 }
 
 void gererFinDePartie() {
-    unsigned long tempsEcoule = millis() - tempsMessage;
-
-    // Debug: afficher le temps écoulé toutes les 500ms
-    if (MONITEUR_ACTIF) {
-        static unsigned long dernierDebug = 0;
-        if (millis() - dernierDebug >= 500) {
-            dernierDebug = millis();
-            Serial.printf("[FIN] Attente... %lu / %lu ms (rejouer=%d, touch=%d, actif=%d)\n",
-                         tempsEcoule, DELAI_MESSAGE, messageRejouerAffiche,
-                         touch.isTouched(), touchActif);
-        }
+    // Si victoire, animer la LED1 verte avec effet de pulsation
+    if (etatActuel == VICTOIRE) {
+        pulserLED1Vert();
     }
 
-    // Attendre 4 secondes avant d'afficher "Pour rejouer"
-    if (tempsEcoule >= DELAI_MESSAGE) {
-        // Ajouter le message "Pour rejouer" UNE SEULE FOIS
-        if (!messageRejouerAffiche) {
-            if (MONITEUR_ACTIF) Serial.println("[FIN] Affichage message 'Pour rejouer'");
+    // Attendre le délai configuré puis redémarrer automatiquement
+    if (millis() - tempsMessage >= DELAI_MESSAGE) {
+        // Éteindre rouge/vert, rallumer blanc
+        led1Blanc();
 
-            if (etatActuel == VICTOIRE) {
-                unsigned long secondes = compteur / 1000;
-                unsigned long dixiemes = (compteur % 1000) / 100;
-                char ligne1[64];
-                sprintf(ligne1, "Bravo, tu as gagné en %lu.%lu s", secondes, dixiemes);
-                afficherResultat(ligne1, nullptr, "Pour rejouer appuie sur l'écran");
-            } else if (etatActuel == DEFAITE) {
-                afficherResultat("OH! non tu as touché", nullptr, "Pour rejouer, appuie sur l'écran");
-            } else if (etatActuel == TIMEOUT) {
-                afficherResultat("Le temps est écoulé", nullptr, "Pour rejouer appuie sur l'écran");
-            }
-            messageRejouerAffiche = true;
-            touchActif = false;  // Désactiver le touch jusqu'au relâchement
-        }
+        // Réinitialiser les variables
+        etatActuel = ATTENTE_DEMARRAGE;
+        coteDepart = 0;
+        compteur = 0;
+        tempsAbandon = 0;
+        ecranAffiche = false;
+        messageRejouerAffiche = false;
 
-        // Activer le touch après relâchement
-        if (!touchActif && !touch.isTouched()) {
-            touchActif = true;
-            if (MONITEUR_ACTIF) Serial.println("[FIN] Touch activé (écran relâché)");
-        }
+        // Réinitialiser les variables de pulsation
+        luminositeVictoire = 30;
+        pulsationMontante = true;
 
-        // Détecter le touch pour redémarrer (seulement si activé)
-        if (touchActif && touch.isTouched()) {
-            if (MONITEUR_ACTIF) Serial.println("[FIN] Touch détecté - Redémarrage");
-
-            // Éteindre rouge/vert, rallumer blanc
-            led1Blanc();
-
-            // Réinitialiser les variables
-            etatActuel = ATTENTE_DEMARRAGE;
-            coteDepart = 0;
-            compteur = 0;
-            tempsAbandon = 0;
-            ecranAffiche = false;
-            messageRejouerAffiche = false;
-            touchActif = false;
-
-            afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
-            delay(300);  // Debounce touch
-        }
+        afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
     }
 }
 

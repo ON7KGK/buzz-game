@@ -10,7 +10,10 @@
 #define FONTS_H
 
 // Polices standards (9-24pt) déjà incluses dans Display.h via Adafruit GFX Library
-// On inclut uniquement les grandes polices (48, 60, 72pt) qui ne sont pas dans Adafruit
+// On inclut uniquement les grandes polices (48, 54, 60, 72pt) qui ne sont pas dans Adafruit
+
+// Police 54pt pour affichage "BRAVO !"
+#include <FreeSansBold54pt7b.h>
 
 // Police 72pt pour affichage du compteur
 #include <FreeSansBold72pt7b.h>
