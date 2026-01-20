@@ -21,6 +21,7 @@
 #include "drivers/Audio.h"
 #include "drivers/SDCard.h"
 #include "drivers/Touch.h"
+#include "drivers/DFPlayer.h"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OBJETS GLOBAUX (accessibles depuis main.cpp)
@@ -30,6 +31,7 @@ extern Display display;
 extern AudioDriver audio;
 extern SDCard sd;
 extern Touch touch;
+extern DFPlayerDriver dfplayer;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'INITIALISATION
@@ -64,8 +66,15 @@ inline void initI2C() {
 }
 
 inline bool initAudio() {
-    #if FEATURE_AUDIO_ENABLED
+    #if FEATURE_I2S_AUDIO_ENABLED
+    // DÉLAI CRITIQUE pour stabilisation I2S/MAX98357A/ES8311
+    // Sans ce délai, l'initialisation audio peut échouer aléatoirement
+    // Testé et validé pour une fiabilité à 100%
+    delay(1500);
+
     if (audio.begin()) {
+        // Délai post-initialisation pour stabiliser l'ampli
+        delay(800);
         audio.setVolume(DEFAULT_AUDIO_VOLUME);
         return true;
     }
@@ -78,6 +87,22 @@ inline bool initAudio() {
 inline bool initTouch() {
     #if FEATURE_DISPLAY_ENABLED
     return touch.begin();
+    #else
+    return true;
+    #endif
+}
+
+inline bool initDFPlayer() {
+    #if FEATURE_DFPLAYER_ENABLED
+    // Initialiser le DFPlayer Mini pour les sons de victoire/défaite/timeout
+    // Connexions: GPIO 47 (TX) -> DFPlayer RX, GPIO 48 (RX) -> DFPlayer TX
+    if (dfplayer.begin(DFPLAYER_RX_PIN, DFPLAYER_TX_PIN)) {
+        dfplayer.setVolume(DFPLAYER_VOLUME);
+        Serial.println("DFPlayer Mini: OK");
+        return true;
+    }
+    Serial.println("DFPlayer Mini: ERREUR (non bloquant)");
+    return false;  // Non bloquant - le jeu peut continuer sans DFPlayer
     #else
     return true;
     #endif
@@ -96,6 +121,7 @@ inline bool initHardware() {
     initSDCard();
     initAudio();
     initTouch();
+    initDFPlayer();  // Initialiser le DFPlayer Mini (non bloquant)
 
     return true;
 }

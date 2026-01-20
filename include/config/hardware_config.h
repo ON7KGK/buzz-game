@@ -29,4 +29,14 @@
 #define FLASH_SIZE_MB               16
 #define PSRAM_SIZE_MB               8
 
+// ============================================================================
+// DFPLAYER MINI - LECTEUR MP3 EXTERNE
+// ============================================================================
+// Connexions avec conversion de niveaux 3.3V <-> 5V:
+// GPIO 47 (ESP32 RX) <- DFPlayer TX
+// GPIO 48 (ESP32 TX) -> DFPlayer RX
+#define DFPLAYER_RX_PIN             47
+#define DFPLAYER_TX_PIN             48
+#define DFPLAYER_VOLUME             22   // Volume par défaut (0-30)
+
 #endif // HARDWARE_CONFIG_H

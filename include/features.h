@@ -26,19 +26,25 @@
  * @brief Activer l'écran tactile capacitif
  * Si désactivé, la détection tactile ne sera pas initialisée
  */
-#define FEATURE_TOUCH_ENABLED           true
+#define FEATURE_TOUCH_ENABLED           false
 
 /**
- * @brief Activer l'audio (ES8311 codec)
- * Si désactivé, pas de son ni de lecture MP3
+ * @brief Activer l'audio I2S (ES8311 codec + MAX98357A)
+ * Si désactivé, pas de son via I2S
  */
-#define FEATURE_AUDIO_ENABLED           true
+#define FEATURE_I2S_AUDIO_ENABLED       false
 
 /**
- * @brief Activer la carte SD/TF
+ * @brief Activer le DFPlayer Mini (lecteur MP3 externe)
+ * Si désactivé, pas de son via DFPlayer
+ */
+#define FEATURE_DFPLAYER_ENABLED        true
+
+/**
+ * @brief Activer la carte SD/TF du module ESP32 Waveshare
  * Si désactivé, impossible de lire/écrire sur la carte SD
  */
-#define FEATURE_SD_ENABLED              true
+#define FEATURE_SD_ENABLED              false
 
 // ============================================================================
 // FONCTIONNALITÉS SECONDAIRES (Priorité 2 - Pour projets futurs)

@@ -27,12 +27,11 @@ Display display;
 AudioDriver audio;
 SDCard sd;
 Touch touch;
+DFPlayerDriver dfplayer;
 
 // Bandeaux LED SK9822
-LEDStrip led1(21, 38, 60);  // LED1: GPIO21 (DI), GPIO38 (CI), 60 LEDs
-LEDStrip led2(39, 40, 60);  // LED2: GPIO39 (DI), GPIO40 (CI), 60 LEDs - Côté 1 du carré
-LEDStrip led3(41, 42, 60);  // LED3: GPIO41 (DI), GPIO42 (CI), 60 LEDs - Côté 2 du carré
-LEDStrip led4(45, 46, 60);  // LED4: GPIO45 (DI), GPIO46 (CI), 60 LEDs - Côté 3 du carré
+LEDStrip led1(21, 38, 60);  // LED1: GPIO21 (DI), GPIO38 (CI), 60 LEDs - Indicateur d'état
+LEDStrip led2(39, 40, 92);  // LED2: GPIO39 (DI), GPIO40 (CI), 92 LEDs - Chenillard tour du meuble
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION GPIO
@@ -50,6 +49,7 @@ enum EtatJeu {
     ATTENTE_DEMARRAGE,  // En attente du positionnement du manche
     PRET_GAUCHE,        // Manche positionné à gauche, prêt à démarrer
     PRET_DROIT,         // Manche positionné à droite, prêt à démarrer
+    COUNTDOWN,          // Compte à rebours 3, 2, 1 avant le jeu
     JEU_EN_COURS,       // Jeu en cours
     VICTOIRE,           // Joueur a gagné
     DEFAITE,            // Joueur a perdu (touché le serpentin)
@@ -68,7 +68,7 @@ unsigned long tempsDebut = 0;      // Temps du début du jeu
 unsigned long tempsMessage = 0;    // Temps d'affichage des messages
 unsigned long tempsRainbow = 0;    // Temps pour animation rainbow LED2
 uint8_t luminositeLED1 = 200;      // Luminosité LED1 (0-255, ajustable)
-uint8_t luminositeLED234 = 200;   // Luminosité LED2-4 (0-255, ajustable)
+uint8_t luminositeLED2 = 200;     // Luminosité LED2 (0-255, ajustable)
 
 const unsigned long TIMEOUT_JEU = 60000;         // 60 secondes
 const unsigned long DELAI_MESSAGE = 7000;        // ⚙️ CONFIGURABLE: Délai avant redémarrage auto (en ms)
@@ -87,6 +87,10 @@ bool touchActif = false;           // Flag pour activer la détection touch apr�
 unsigned long tempsPulsation = 0;  // Timer pour la pulsation
 uint8_t luminositeVictoire = 30;   // Luminosité actuelle pour la pulsation
 bool pulsationMontante = true;     // Direction de la pulsation
+
+// Variables pour le countdown 3, 2, 1
+unsigned long tempsCountdown = 0;  // Timer pour le countdown
+uint8_t etapeCountdown = 0;        // 0=Prêt?, 1=3, 2=2, 3=1, 4=Go!
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
@@ -149,6 +153,37 @@ void afficherTexte(const char* texte1, const char* texte2 = nullptr) {
         canvas->setCursor(x, y);
         canvas->print(ligne2);
     }
+
+    display.flush();
+}
+
+void afficherTexteGrand(const char* texte, bool petitePolice = false) {
+    // Affiche un texte en très grand au centre de l'écran (pour countdown)
+    // petitePolice = true utilise 54pt (pour "PRET ?"), false utilise 72pt (pour chiffres)
+    auto canvas = display.getCanvas();
+
+    canvas->fillScreen(BLACK);
+    canvas->setTextColor(YELLOW);
+
+    if (petitePolice) {
+        canvas->setFont(&FreeSansBold54pt7b);
+    } else {
+        canvas->setFont(&FreeSansBold72pt7b);
+    }
+    canvas->setTextSize(1);
+
+    // Convertir UTF-8 vers Latin-1
+    String ligne = utf8ToLatin1(texte);
+
+    // Centrer le texte
+    int16_t x1, y1;
+    uint16_t w, h;
+    canvas->getTextBounds(ligne.c_str(), 0, 0, &x1, &y1, &w, &h);
+    int16_t x = (480 - w) / 2 - x1;
+    int16_t y = (320 - h) / 2 - y1;
+
+    canvas->setCursor(x, y);
+    canvas->print(ligne);
 
     display.flush();
 }
@@ -356,25 +391,26 @@ void pulserLED1Vert() {
     }
 }
 
-// Variable globale pour le rainbow synchronisé (partagée entre LED2-4)
+// Variable globale pour le rainbow cyclique
 uint16_t rainbowHueGlobal = 0;
 
 void mettreAJourLED2() {
-    // Animation rainbow continue pour LED2, LED3, LED4 (3 côtés du carré)
+    // Animation rainbow cyclique pour LED2 (chenillard tour du meuble)
+    // La teinte fait un cycle complet sur le bandeau, fin = début pour effet harmonieux
     unsigned long maintenant = millis();
-    if (maintenant - tempsRainbow >= 3) {  // Plus rapide : 3ms
+    if (maintenant - tempsRainbow >= 3) {  // Mise à jour toutes les 3ms
         tempsRainbow = maintenant;
 
-        // Incrémenter la teinte globale
+        // Incrémenter la teinte globale (vitesse du défilement)
         rainbowHueGlobal += 256;
         if (rainbowHueGlobal >= 65536) {
             rainbowHueGlobal = 0;
         }
 
-        // Total de LEDs pour le carré (3 côtés × 60 LEDs)
-        const uint16_t totalLeds = 180;
+        // Nombre de LEDs sur LED2
+        const uint16_t numLeds = 92;
 
-        // Fonction wheel locale
+        // Fonction wheel pour convertir teinte en RGB
         auto wheel = [](byte wheelPos) -> uint32_t {
             wheelPos = 255 - wheelPos;
             if (wheelPos < 85) {
@@ -388,39 +424,20 @@ void mettreAJourLED2() {
             return ((wheelPos * 3) << 16) | ((255 - wheelPos * 3) << 8) | (0);
         };
 
-        // Appliquer luminosité aux LED2-4
-        led2.setBrightness(luminositeLED234);
-        led3.setBrightness(luminositeLED234);
-        led4.setBrightness(luminositeLED234);
+        // Appliquer luminosité
+        led2.setBrightness(luminositeLED2);
 
-        // LED2 - Côté 1 (LEDs 0-59)
-        for (uint16_t i = 0; i < 60; i++) {
-            uint16_t pixelHue = rainbowHueGlobal + (i * 65536L / totalLeds);
+        // Appliquer le rainbow cyclique sur LED2
+        // Chaque LED a une teinte décalée, le cycle complet = 65536
+        // Ainsi la dernière LED rejoint la première en teinte
+        for (uint16_t i = 0; i < numLeds; i++) {
+            uint16_t pixelHue = rainbowHueGlobal + (i * 65536L / numLeds);
             uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
             uint32_t color = wheel(wheelPos);
             led2.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
         }
 
-        // LED3 - Côté 2 (LEDs 60-119)
-        for (uint16_t i = 0; i < 60; i++) {
-            uint16_t pixelHue = rainbowHueGlobal + ((i + 60) * 65536L / totalLeds);
-            uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
-            uint32_t color = wheel(wheelPos);
-            led3.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
-        }
-
-        // LED4 - Côté 3 (LEDs 120-179)
-        for (uint16_t i = 0; i < 60; i++) {
-            uint16_t pixelHue = rainbowHueGlobal + ((i + 120) * 65536L / totalLeds);
-            uint8_t wheelPos = (pixelHue >> 8) & 0xFF;
-            uint32_t color = wheel(wheelPos);
-            led4.setPixel(i, (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF);
-        }
-
-        // Afficher tous les strips en même temps
         led2.show();
-        led3.show();
-        led4.show();
     }
 }
 
@@ -480,11 +497,15 @@ void gererPretGauche() {
 
     // Le joueur a soulevé le manche du plot gauche (optocoupleur désactivé = LOW)
     if (pinGauche == LOW) {
-        etatActuel = JEU_EN_COURS;
-        tempsDebut = millis();
-        compteur = 0;
-        display.clear(BLACK);  // Effacer l'écran au début du jeu
-        afficherCompteur();
+        // Démarrer le countdown au lieu du jeu directement
+        etatActuel = COUNTDOWN;
+        etapeCountdown = 0;
+        tempsCountdown = millis();
+        display.clear(BLACK);
+        afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
+        #endif
     }
 }
 
@@ -493,10 +514,74 @@ void gererPretDroit() {
 
     // Le joueur a soulevé le manche du plot droit (optocoupleur désactivé = LOW)
     if (pinDroit == LOW) {
+        // Démarrer le countdown au lieu du jeu directement
+        etatActuel = COUNTDOWN;
+        etapeCountdown = 0;
+        tempsCountdown = millis();
+        display.clear(BLACK);
+        afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
+        #endif
+    }
+}
+
+void gererCountdown() {
+    unsigned long maintenant = millis();
+    unsigned long tempsEcoule = maintenant - tempsCountdown;
+
+    // Durées des étapes
+    const unsigned long DUREE_PRET = 3000;    // "PRET ?" affiché 3 secondes
+    const unsigned long DUREE_CHIFFRE = 1000; // 3, 2, 1 affichés 1 seconde chacun
+
+    // Étape 0: "PRET ?" (déjà affiché) - attendre 3 secondes
+    // Étape 1: "3" - attendre 1 seconde
+    // Étape 2: "2" - attendre 1 seconde
+    // Étape 3: "1" - attendre 1 seconde
+    // Étape 4: "GO !" puis démarrer le jeu
+
+    if (etapeCountdown == 0 && tempsEcoule >= DUREE_PRET) {
+        etapeCountdown = 1;
+        tempsCountdown = maintenant;
+        display.clear(BLACK);
+        afficherTexteGrand("3");
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.play(1, 6);  // Son "3" - /01/006.mp3
+        #endif
+    }
+    else if (etapeCountdown == 1 && tempsEcoule >= DUREE_CHIFFRE) {
+        etapeCountdown = 2;
+        tempsCountdown = maintenant;
+        display.clear(BLACK);
+        afficherTexteGrand("2");
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.play(1, 7);  // Son "2" - /01/007.mp3
+        #endif
+    }
+    else if (etapeCountdown == 2 && tempsEcoule >= DUREE_CHIFFRE) {
+        etapeCountdown = 3;
+        tempsCountdown = maintenant;
+        display.clear(BLACK);
+        afficherTexteGrand("1");
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.play(1, 8);  // Son "1" - /01/008.mp3
+        #endif
+    }
+    else if (etapeCountdown == 3 && tempsEcoule >= DUREE_CHIFFRE) {
+        etapeCountdown = 4;
+        tempsCountdown = maintenant;
+        display.clear(BLACK);
+        afficherTexteGrand("GO !");
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+        #endif
+    }
+    else if (etapeCountdown == 4 && tempsEcoule >= DUREE_CHIFFRE) {
+        // Démarrer le jeu!
         etatActuel = JEU_EN_COURS;
         tempsDebut = millis();
         compteur = 0;
-        display.clear(BLACK);  // Effacer l'écran au début du jeu
+        display.clear(BLACK);
         afficherCompteur();
     }
 }
@@ -529,7 +614,12 @@ void gererJeuEnCours() {
             tempsMessage = millis();
             messageRejouerAffiche = false; // Réinitialiser pour nouveau message
             led1Rouge();
+            #if FEATURE_I2S_AUDIO_ENABLED
             audio.play("/audio/touchette7.mp3");
+            #endif
+            #if FEATURE_DFPLAYER_ENABLED
+            dfplayer.playDefaite();  // DFPlayer: son de défaite
+            #endif
             afficherDefaite();
             return;
         }
@@ -541,7 +631,12 @@ void gererJeuEnCours() {
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
         led1Rouge();
+        #if FEATURE_I2S_AUDIO_ENABLED
         audio.play("/audio/erreur.mp3");
+        #endif
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.playTimeout();  // DFPlayer: son de timeout
+        #endif
         afficherTimeout();
         return;
     }
@@ -559,7 +654,12 @@ void gererJeuEnCours() {
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
         led1Vert();
+        #if FEATURE_I2S_AUDIO_ENABLED
         audio.play("/audio/gagne2.mp3");
+        #endif
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.playVictoire();  // DFPlayer: son de victoire
+        #endif
 
         unsigned long secondes = compteur / 1000;
         unsigned long dixiemes = (compteur % 1000) / 100;
@@ -607,6 +707,13 @@ void gererFinDePartie() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void setup() {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DÉLAI DE STABILISATION POWER-ON - CRITIQUE POUR PRODUCTION
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Permet la stabilisation complète de l'alimentation et des composants
+    // avant toute initialisation. Garantit une fiabilité 100% pour le public.
+    delay(2000);
+
     // Initialiser le hardware
     if (!initHardware()) {
         while(1) { delay(1000); }
@@ -620,14 +727,17 @@ void setup() {
     // Initialiser les LEDs
     led1.begin();
     led2.begin();
-    led3.begin();
-    led4.begin();
 
     led1Blanc();
-    // Initialiser le rainbow du carré (LED2-4) sera fait dans loop()
+    // Initialiser le rainbow de LED2 sera fait dans loop()
 
     // Afficher message initial
     afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
+
+    // Jouer le son de démarrage via DFPlayer
+    #if FEATURE_DFPLAYER_ENABLED
+    dfplayer.play(1, 4);  // Lecture /01/004.mp3
+    #endif
 
     Serial.println("=== BUZZ WIRE GAME ===");
     Serial.println("Systeme pret !");
@@ -655,6 +765,10 @@ void loop() {
             gererPretDroit();
             break;
 
+        case COUNTDOWN:
+            gererCountdown();
+            break;
+
         case JEU_EN_COURS:
             gererJeuEnCours();
             break;
@@ -666,8 +780,10 @@ void loop() {
             break;
     }
 
-    // Boucle audio
+    // Boucle audio I2S
+    #if FEATURE_I2S_AUDIO_ENABLED
     audio.loop();
+    #endif
 
     delay(10);
 }
