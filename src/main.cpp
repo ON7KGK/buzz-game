@@ -92,6 +92,9 @@ bool pulsationMontante = true;     // Direction de la pulsation
 unsigned long tempsCountdown = 0;  // Timer pour le countdown
 uint8_t etapeCountdown = 0;        // 0=Prêt?, 1=3, 2=2, 3=1, 4=Go!
 
+// Flag pour détecter si l'anneau touche la structure en position de départ
+bool contactStructureDetecte = false;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -494,6 +497,26 @@ void gererAttenteDepart() {
 
 void gererPretGauche() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
+    bool pinAnneau = digitalRead(PIN_ANNEAU);
+
+    // Vérifier si l'anneau touche déjà la structure (cas embêtant)
+    // Si oui, ne pas lancer le countdown - attendre que le joueur libère la structure
+    if (pinAnneau == HIGH) {
+        // L'anneau touche la structure - afficher un message d'avertissement
+        if (!contactStructureDetecte) {
+            afficherTexte("Attention !", "Libere la structure d'abord");
+            led1Rouge();
+            contactStructureDetecte = true;
+        }
+        return;
+    }
+
+    // Réinitialiser le flag si l'anneau ne touche plus la structure
+    if (contactStructureDetecte) {
+        contactStructureDetecte = false;
+        led1Bleu();
+        afficherTexte("Rejoins l'autre côté", "sans toucher");
+    }
 
     // Le joueur a soulevé le manche du plot gauche (optocoupleur désactivé = LOW)
     if (pinGauche == LOW) {
@@ -511,6 +534,26 @@ void gererPretGauche() {
 
 void gererPretDroit() {
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
+    bool pinAnneau = digitalRead(PIN_ANNEAU);
+
+    // Vérifier si l'anneau touche déjà la structure (cas embêtant)
+    // Si oui, ne pas lancer le countdown - attendre que le joueur libère la structure
+    if (pinAnneau == HIGH) {
+        // L'anneau touche la structure - afficher un message d'avertissement
+        if (!contactStructureDetecte) {
+            afficherTexte("Attention !", "Libere la structure d'abord");
+            led1Rouge();
+            contactStructureDetecte = true;
+        }
+        return;
+    }
+
+    // Réinitialiser le flag si l'anneau ne touche plus la structure
+    if (contactStructureDetecte) {
+        contactStructureDetecte = false;
+        led1Bleu();
+        afficherTexte("Rejoins l'autre côté", "sans toucher");
+    }
 
     // Le joueur a soulevé le manche du plot droit (optocoupleur désactivé = LOW)
     if (pinDroit == LOW) {
