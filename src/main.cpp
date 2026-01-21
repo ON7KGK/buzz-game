@@ -95,6 +95,17 @@ uint8_t etapeCountdown = 0;        // 0=Prêt?, 1=3, 2=2, 3=1, 4=Go!
 // Flag pour détecter si l'anneau touche la structure en position de départ
 bool contactStructureDetecte = false;
 
+// Variables pour le debounce non-bloquant des plots
+unsigned long tempsDebutContactPlot = 0;  // Quand le contact avec le plot a commencé
+uint8_t plotEnContact = 0;                 // 0=aucun, 1=gauche, 2=droite
+bool contactPlotValide = false;            // true = contact stable validé après 500ms
+const unsigned long DEBOUNCE_PLOT_MS = 500; // 500ms de contact stable requis
+
+// Variables pour le debounce du relâchement du plot (pour lancer le countdown)
+unsigned long tempsDebutRelachement = 0;  // Quand le relâchement du plot a commencé
+bool relachementEnCours = false;           // true = on a détecté un relâchement potentiel
+const unsigned long DEBOUNCE_RELACHEMENT_MS = 500; // 500ms hors du plot pour valider le départ
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -451,12 +462,22 @@ void mettreAJourLED2() {
 void gererAttenteDepart() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
+    unsigned long maintenant = millis();
 
     // VMA452: HIGH = contact, LOW = libre
-    // Cas 1: Anneau touche plot gauche
-    if (pinGauche == HIGH) {
-        delay(10);  // Debounce
-        if (digitalRead(PIN_PLOT_GAUCHE) == HIGH) {
+
+    // Debounce non-bloquant : on attend 500ms de contact stable avant de valider
+
+    // Cas 1: Contact avec plot gauche
+    if (pinGauche == HIGH && plotEnContact != 2) {
+        if (plotEnContact != 1) {
+            // Nouveau contact détecté sur plot gauche
+            plotEnContact = 1;
+            tempsDebutContactPlot = maintenant;
+            contactPlotValide = false;
+        } else if (!contactPlotValide && (maintenant - tempsDebutContactPlot >= DEBOUNCE_PLOT_MS)) {
+            // Contact stable depuis 500ms - validé!
+            contactPlotValide = true;
             coteDepart = 1;
             etatActuel = PRET_GAUCHE;
             led1Bleu();
@@ -466,11 +487,16 @@ void gererAttenteDepart() {
             return;
         }
     }
-
-    // Cas 2: Anneau touche plot droit
-    if (pinDroit == HIGH) {
-        delay(10);  // Debounce
-        if (digitalRead(PIN_PLOT_DROIT) == HIGH) {
+    // Cas 2: Contact avec plot droit
+    else if (pinDroit == HIGH && plotEnContact != 1) {
+        if (plotEnContact != 2) {
+            // Nouveau contact détecté sur plot droit
+            plotEnContact = 2;
+            tempsDebutContactPlot = maintenant;
+            contactPlotValide = false;
+        } else if (!contactPlotValide && (maintenant - tempsDebutContactPlot >= DEBOUNCE_PLOT_MS)) {
+            // Contact stable depuis 500ms - validé!
+            contactPlotValide = true;
             coteDepart = 2;
             etatActuel = PRET_DROIT;
             led1Bleu();
@@ -479,6 +505,11 @@ void gererAttenteDepart() {
             ecranAffiche = false;
             return;
         }
+    }
+    // Cas 3: Aucun contact - réinitialiser
+    else if (pinGauche == LOW && pinDroit == LOW) {
+        plotEnContact = 0;
+        contactPlotValide = false;
     }
 
     // Cas 3: Anneau libre (tous LOW) - afficher message après délai
@@ -498,6 +529,7 @@ void gererAttenteDepart() {
 void gererPretGauche() {
     bool pinGauche = digitalRead(PIN_PLOT_GAUCHE);
     bool pinAnneau = digitalRead(PIN_ANNEAU);
+    unsigned long maintenant = millis();
 
     // Vérifier si l'anneau touche déjà la structure (cas embêtant)
     // Si oui, ne pas lancer le countdown - attendre que le joueur libère la structure
@@ -508,6 +540,8 @@ void gererPretGauche() {
             led1Rouge();
             contactStructureDetecte = true;
         }
+        // Réinitialiser le debounce de relâchement
+        relachementEnCours = false;
         return;
     }
 
@@ -518,23 +552,36 @@ void gererPretGauche() {
         afficherTexte("Rejoins l'autre côté", "sans toucher");
     }
 
-    // Le joueur a soulevé le manche du plot gauche (optocoupleur désactivé = LOW)
+    // Debounce non-bloquant pour le relâchement du plot
+    // Le manche doit être hors du plot pendant 500ms pour valider le départ intentionnel
     if (pinGauche == LOW) {
-        // Démarrer le countdown au lieu du jeu directement
-        etatActuel = COUNTDOWN;
-        etapeCountdown = 0;
-        tempsCountdown = millis();
-        display.clear(BLACK);
-        afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
-        #endif
+        // Le manche n'est plus sur le plot
+        if (!relachementEnCours) {
+            // Début du relâchement potentiel
+            relachementEnCours = true;
+            tempsDebutRelachement = maintenant;
+        } else if (maintenant - tempsDebutRelachement >= DEBOUNCE_RELACHEMENT_MS) {
+            // Relâchement confirmé après 500ms - démarrer le countdown
+            relachementEnCours = false;
+            etatActuel = COUNTDOWN;
+            etapeCountdown = 0;
+            tempsCountdown = millis();
+            display.clear(BLACK);
+            afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
+            #if FEATURE_DFPLAYER_ENABLED
+            dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
+            #endif
+        }
+    } else {
+        // Le manche est revenu sur le plot - annuler le debounce
+        relachementEnCours = false;
     }
 }
 
 void gererPretDroit() {
     bool pinDroit = digitalRead(PIN_PLOT_DROIT);
     bool pinAnneau = digitalRead(PIN_ANNEAU);
+    unsigned long maintenant = millis();
 
     // Vérifier si l'anneau touche déjà la structure (cas embêtant)
     // Si oui, ne pas lancer le countdown - attendre que le joueur libère la structure
@@ -545,6 +592,8 @@ void gererPretDroit() {
             led1Rouge();
             contactStructureDetecte = true;
         }
+        // Réinitialiser le debounce de relâchement
+        relachementEnCours = false;
         return;
     }
 
@@ -555,17 +604,29 @@ void gererPretDroit() {
         afficherTexte("Rejoins l'autre côté", "sans toucher");
     }
 
-    // Le joueur a soulevé le manche du plot droit (optocoupleur désactivé = LOW)
+    // Debounce non-bloquant pour le relâchement du plot
+    // Le manche doit être hors du plot pendant 500ms pour valider le départ intentionnel
     if (pinDroit == LOW) {
-        // Démarrer le countdown au lieu du jeu directement
-        etatActuel = COUNTDOWN;
-        etapeCountdown = 0;
-        tempsCountdown = millis();
-        display.clear(BLACK);
-        afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
-        #endif
+        // Le manche n'est plus sur le plot
+        if (!relachementEnCours) {
+            // Début du relâchement potentiel
+            relachementEnCours = true;
+            tempsDebutRelachement = maintenant;
+        } else if (maintenant - tempsDebutRelachement >= DEBOUNCE_RELACHEMENT_MS) {
+            // Relâchement confirmé après 500ms - démarrer le countdown
+            relachementEnCours = false;
+            etatActuel = COUNTDOWN;
+            etapeCountdown = 0;
+            tempsCountdown = millis();
+            display.clear(BLACK);
+            afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
+            #if FEATURE_DFPLAYER_ENABLED
+            dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
+            #endif
+        }
+    } else {
+        // Le manche est revenu sur le plot - annuler le debounce
+        relachementEnCours = false;
     }
 }
 
@@ -574,44 +635,14 @@ void gererCountdown() {
     unsigned long tempsEcoule = maintenant - tempsCountdown;
 
     // Durées des étapes
-    const unsigned long DUREE_PRET = 3000;    // "PRET ?" affiché 3 secondes
-    const unsigned long DUREE_CHIFFRE = 1000; // 3, 2, 1 affichés 1 seconde chacun
+    const unsigned long DUREE_PRET = 2000;    // "PRET ?" affiché 2 secondes
+    const unsigned long DUREE_GO = 1000;      // "GO !" affiché 1 seconde
 
-    // Étape 0: "PRET ?" (déjà affiché) - attendre 3 secondes
-    // Étape 1: "3" - attendre 1 seconde
-    // Étape 2: "2" - attendre 1 seconde
-    // Étape 3: "1" - attendre 1 seconde
-    // Étape 4: "GO !" puis démarrer le jeu
+    // Étape 0: "PRET ?" (déjà affiché) - attendre 1 seconde
+    // Étape 1: "GO !" puis démarrer le jeu
 
     if (etapeCountdown == 0 && tempsEcoule >= DUREE_PRET) {
         etapeCountdown = 1;
-        tempsCountdown = maintenant;
-        display.clear(BLACK);
-        afficherTexteGrand("3");
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.play(1, 6);  // Son "3" - /01/006.mp3
-        #endif
-    }
-    else if (etapeCountdown == 1 && tempsEcoule >= DUREE_CHIFFRE) {
-        etapeCountdown = 2;
-        tempsCountdown = maintenant;
-        display.clear(BLACK);
-        afficherTexteGrand("2");
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.play(1, 7);  // Son "2" - /01/007.mp3
-        #endif
-    }
-    else if (etapeCountdown == 2 && tempsEcoule >= DUREE_CHIFFRE) {
-        etapeCountdown = 3;
-        tempsCountdown = maintenant;
-        display.clear(BLACK);
-        afficherTexteGrand("1");
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.play(1, 8);  // Son "1" - /01/008.mp3
-        #endif
-    }
-    else if (etapeCountdown == 3 && tempsEcoule >= DUREE_CHIFFRE) {
-        etapeCountdown = 4;
         tempsCountdown = maintenant;
         display.clear(BLACK);
         afficherTexteGrand("GO !");
@@ -619,7 +650,7 @@ void gererCountdown() {
         dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
         #endif
     }
-    else if (etapeCountdown == 4 && tempsEcoule >= DUREE_CHIFFRE) {
+    else if (etapeCountdown == 1 && tempsEcoule >= DUREE_GO) {
         // Démarrer le jeu!
         etatActuel = JEU_EN_COURS;
         tempsDebut = millis();
@@ -779,6 +810,8 @@ void setup() {
 
     // Jouer le son de démarrage via DFPlayer
     #if FEATURE_DFPLAYER_ENABLED
+    // Délai supplémentaire pour s'assurer que le DFPlayer est prêt à jouer
+    delay(500);
     dfplayer.play(1, 4);  // Lecture /01/004.mp3
     #endif
 
