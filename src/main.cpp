@@ -561,15 +561,15 @@ void gererPretGauche() {
             relachementEnCours = true;
             tempsDebutRelachement = maintenant;
         } else if (maintenant - tempsDebutRelachement >= DEBOUNCE_RELACHEMENT_MS) {
-            // Relâchement confirmé après 500ms - démarrer le countdown
+            // Relâchement confirmé après 500ms - afficher GO! et démarrer le jeu
             relachementEnCours = false;
             etatActuel = COUNTDOWN;
-            etapeCountdown = 0;
-            tempsCountdown = millis();
+            etapeCountdown = 1;  // Directement à l'étape GO!
             display.clear(BLACK);
-            afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
             #if FEATURE_DFPLAYER_ENABLED
-            dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
+            dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+            tempsCountdown = millis();
+            afficherTexteGrand("GO !");
             #endif
         }
     } else {
@@ -613,15 +613,15 @@ void gererPretDroit() {
             relachementEnCours = true;
             tempsDebutRelachement = maintenant;
         } else if (maintenant - tempsDebutRelachement >= DEBOUNCE_RELACHEMENT_MS) {
-            // Relâchement confirmé après 500ms - démarrer le countdown
+            // Relâchement confirmé après 500ms - afficher GO! et démarrer le jeu
             relachementEnCours = false;
             etatActuel = COUNTDOWN;
-            etapeCountdown = 0;
-            tempsCountdown = millis();
+            etapeCountdown = 1;  // Directement à l'étape GO!
             display.clear(BLACK);
-            afficherTexteGrand("PRET ?", true);  // true = petite police (54pt)
             #if FEATURE_DFPLAYER_ENABLED
-            dfplayer.play(1, 5);  // Son "Prêt?" - /01/005.mp3
+            dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+            tempsCountdown = millis();
+            afficherTexteGrand("GO !");
             #endif
         }
     } else {
@@ -635,7 +635,7 @@ void gererCountdown() {
     unsigned long tempsEcoule = maintenant - tempsCountdown;
 
     // Durées des étapes
-    const unsigned long DUREE_PRET = 2000;    // "PRET ?" affiché 2 secondes
+    const unsigned long DUREE_PRET = 1;    // "PRET ?" affiché 2 secondes
     const unsigned long DUREE_GO = 1000;      // "GO !" affiché 1 seconde
 
     // Étape 0: "PRET ?" (déjà affiché) - attendre 1 seconde
@@ -645,9 +645,10 @@ void gererCountdown() {
         etapeCountdown = 1;
         tempsCountdown = maintenant;
         display.clear(BLACK);
-        afficherTexteGrand("GO !");
         #if FEATURE_DFPLAYER_ENABLED
         dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+        tempsCountdown = millis();
+        afficherTexteGrand("GO !");
         #endif
     }
     else if (etapeCountdown == 1 && tempsEcoule >= DUREE_GO) {
