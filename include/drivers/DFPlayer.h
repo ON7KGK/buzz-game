@@ -204,11 +204,11 @@ private:
         }
     }
 
-    // Attend 200ms minimum entre deux commandes série
+    // Attend 150ms minimum entre deux commandes série
     void _waitMinInterval() {
         unsigned long elapsed = millis() - _lastCmdTime;
-        if (elapsed < 200) {
-            delay(200 - elapsed);
+        if (elapsed < 150) {
+            delay(150 - elapsed);
         }
         _lastCmdTime = millis();
     }

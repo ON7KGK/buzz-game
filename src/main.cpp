@@ -40,6 +40,7 @@ LEDStrip led2(39, 40, 92);  // LED2: GPIO39 (DI), GPIO40 (CI), 92 LEDs - Chenill
 #define PIN_PLOT_GAUCHE    17   // Plot de départ gauche (broche 16)
 #define PIN_PLOT_DROIT     18   // Plot de départ droit (broche 18)
 #define PIN_ANNEAU         43   // Anneau métallique - touchette (broche 27 - TX)
+#define PIN_BUZZER         46   // Buzzer de départ (GPIO 46)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ÉTATS DU JEU
@@ -74,6 +75,8 @@ const unsigned long TIMEOUT_JEU = 60000;         // 60 secondes
 const unsigned long DELAI_MESSAGE = 7000;        // ⚙️ CONFIGURABLE: Délai avant redémarrage auto (en ms)
 const unsigned long DELAI_ABANDON = 2000;        // 2 secondes pour détecter abandon
 const unsigned long INTERVALLE_RAINBOW = 1;      // 1ms entre mises à jour rainbow (vitesse LED2)
+const unsigned long DELAI_GO_AFFICHAGE = 1000;   // ⚙️ CONFIGURABLE: Délai (ms) entre commande son GO et affichage "GO!" (compense silence début MP3)
+const unsigned long DUREE_BUZZER = 500;          // ⚙️ CONFIGURABLE: Durée d'activation du buzzer GO (en ms)
 
 // Configuration du moniteur série
 const bool MONITEUR_ACTIF = true;                // true = affichage des infos de debug, false = désactivé
@@ -99,12 +102,16 @@ bool contactStructureDetecte = false;
 unsigned long tempsDebutContactPlot = 0;  // Quand le contact avec le plot a commencé
 uint8_t plotEnContact = 0;                 // 0=aucun, 1=gauche, 2=droite
 bool contactPlotValide = false;            // true = contact stable validé après 500ms
-const unsigned long DEBOUNCE_PLOT_MS = 500; // 500ms de contact stable requis
+const unsigned long DEBOUNCE_PLOT_MS = 100; // 100ms de contact stable requis
 
 // Variables pour le debounce du relâchement du plot (pour lancer le countdown)
 unsigned long tempsDebutRelachement = 0;  // Quand le relâchement du plot a commencé
 bool relachementEnCours = false;           // true = on a détecté un relâchement potentiel
-const unsigned long DEBOUNCE_RELACHEMENT_MS = 500; // 500ms hors du plot pour valider le départ
+const unsigned long DEBOUNCE_RELACHEMENT_MS = 0; // Sans délai de relâchement
+
+// Variables pour le buzzer GO
+unsigned long tempsBuzzer = 0;    // Quand le buzzer a été activé
+bool buzzerActif = false;          // true = buzzer en cours
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
@@ -566,11 +573,11 @@ void gererPretGauche() {
             etatActuel = COUNTDOWN;
             etapeCountdown = 1;  // Directement à l'étape GO!
             display.clear(BLACK);
-            #if FEATURE_DFPLAYER_ENABLED
-            dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+            digitalWrite(PIN_BUZZER, HIGH);
+            buzzerActif = true;
+            tempsBuzzer = millis();
             tempsCountdown = millis();
             afficherTexteGrand("GO !");
-            #endif
         }
     } else {
         // Le manche est revenu sur le plot - annuler le debounce
@@ -618,11 +625,11 @@ void gererPretDroit() {
             etatActuel = COUNTDOWN;
             etapeCountdown = 1;  // Directement à l'étape GO!
             display.clear(BLACK);
-            #if FEATURE_DFPLAYER_ENABLED
-            dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+            digitalWrite(PIN_BUZZER, HIGH);
+            buzzerActif = true;
+            tempsBuzzer = millis();
             tempsCountdown = millis();
             afficherTexteGrand("GO !");
-            #endif
         }
     } else {
         // Le manche est revenu sur le plot - annuler le debounce
@@ -645,11 +652,11 @@ void gererCountdown() {
         etapeCountdown = 1;
         tempsCountdown = maintenant;
         display.clear(BLACK);
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.play(1, 9);  // Son "Go!" - /01/009.mp3
+        digitalWrite(PIN_BUZZER, HIGH);
+        buzzerActif = true;
+        tempsBuzzer = millis();
         tempsCountdown = millis();
         afficherTexteGrand("GO !");
-        #endif
     }
     else if (etapeCountdown == 1 && tempsEcoule >= DUREE_GO) {
         // Démarrer le jeu!
@@ -768,12 +775,16 @@ void gererFinDePartie() {
         tempsAbandon = 0;
         ecranAffiche = false;
         messageRejouerAffiche = false;
+        plotEnContact = 0;
+        contactPlotValide = false;
+        relachementEnCours = false;
+        contactStructureDetecte = false;
 
         // Réinitialiser les variables de pulsation
         luminositeVictoire = 30;
         pulsationMontante = true;
 
-        afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
+        display.clear(BLACK);
     }
 }
 
@@ -782,6 +793,10 @@ void gererFinDePartie() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void setup() {
+    // Couper le buzzer immédiatement (GPIO flottant au boot)
+    pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
+
     // ═══════════════════════════════════════════════════════════════════════════
     // DÉLAI DE STABILISATION POWER-ON - CRITIQUE POUR PRODUCTION
     // ═══════════════════════════════════════════════════════════════════════════
@@ -798,6 +813,8 @@ void setup() {
     pinMode(PIN_PLOT_GAUCHE, INPUT_PULLUP);
     pinMode(PIN_PLOT_DROIT, INPUT_PULLUP);
     pinMode(PIN_ANNEAU, INPUT_PULLUP);
+    pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, LOW);
 
     // Initialiser les LEDs
     led1.begin();
@@ -827,6 +844,12 @@ void setup() {
 void loop() {
     // Animation LED2 rainbow continue
     mettreAJourLED2();
+
+    // Gestion buzzer GO (non-bloquant)
+    if (buzzerActif && (millis() - tempsBuzzer >= DUREE_BUZZER)) {
+        digitalWrite(PIN_BUZZER, LOW);
+        buzzerActif = false;
+    }
 
     // Watchdog DFPlayer (toutes les 30s, reset auto après 3 échecs)
     #if FEATURE_DFPLAYER_ENABLED
