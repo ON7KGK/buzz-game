@@ -7,7 +7,7 @@
  *
  * @author SPARKOH! - Michaël
  * @date 2025
- * @version 3.0.0
+ * @version 3.0.0. version OK MEL 2026
  */
 
 #include <Arduino.h>
