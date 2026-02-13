@@ -40,6 +40,9 @@ public:
     bool begin(uint8_t rxPin, uint8_t txPin) {
         Serial.println("DFPlayer: Initialisation...");
 
+        _rxPin = rxPin;
+        _txPin = txPin;
+
         // Initialiser le port série pour le DFPlayer
         _serial.begin(9600, SERIAL_8N1, rxPin, txPin);
 
@@ -85,6 +88,7 @@ public:
     void playVictoire() {
         if (_initialized) {
             Serial.println("DFPlayer: Lecture VICTOIRE");
+            _waitMinInterval();
             _player.playFolder(1, MP3_VICTOIRE);
         }
     }
@@ -95,6 +99,7 @@ public:
     void playDefaite() {
         if (_initialized) {
             Serial.println("DFPlayer: Lecture DEFAITE");
+            _waitMinInterval();
             _player.playFolder(1, MP3_DEFAITE);
         }
     }
@@ -105,6 +110,7 @@ public:
     void playTimeout() {
         if (_initialized) {
             Serial.println("DFPlayer: Lecture TIMEOUT");
+            _waitMinInterval();
             _player.playFolder(1, MP3_TIMEOUT);
         }
     }
@@ -116,6 +122,7 @@ public:
      */
     void play(uint8_t folder, uint8_t track) {
         if (_initialized) {
+            _waitMinInterval();
             _player.playFolder(folder, track);
         }
     }
@@ -125,7 +132,38 @@ public:
      */
     void stop() {
         if (_initialized) {
+            _waitMinInterval();
             _player.stop();
+        }
+    }
+
+    /**
+     * @brief Watchdog à appeler dans loop() — vérifie la santé du module
+     *        Reset automatique après 3 échecs consécutifs (toutes les 30s).
+     */
+    void watchdog() {
+        if (!_initialized) return;
+
+        unsigned long maintenant = millis();
+        if (maintenant - _lastWatchdogTime < 30000) return;
+        _lastWatchdogTime = maintenant;
+
+        // Tenter de lire le volume comme test de communication
+        int vol = _player.readVolume();
+
+        if (vol == -1) {
+            _failCount++;
+            Serial.printf("DFPlayer WATCHDOG: pas de reponse! (echec #%d/3)\n", _failCount);
+
+            if (_failCount >= 3) {
+                Serial.println("DFPlayer WATCHDOG: reset automatique...");
+                _resetModule();
+            }
+        } else {
+            if (_failCount > 0) {
+                Serial.printf("DFPlayer WATCHDOG: module OK (volume=%d)\n", vol);
+            }
+            _failCount = 0;
         }
     }
 
@@ -144,6 +182,36 @@ private:
     DFRobotDFPlayerMini _player;
     bool _initialized;
     uint8_t _volume;
+    unsigned long _lastCmdTime = 0;       // Protection délai entre commandes
+    unsigned long _lastWatchdogTime = 0;  // Timer watchdog
+    uint8_t _failCount = 0;              // Échecs consécutifs watchdog
+    uint8_t _rxPin = 0;
+    uint8_t _txPin = 0;
+
+    // Reset le module DFPlayer via commande série
+    void _resetModule() {
+        _player.reset();
+        delay(1000);
+        if (_player.begin(_serial)) {
+            _player.volume(_volume);
+            delay(100);
+            _failCount = 0;
+            _lastCmdTime = millis();
+            Serial.println("DFPlayer WATCHDOG: reset reussi!");
+        } else {
+            Serial.println("DFPlayer WATCHDOG: reset echoue, nouvel essai dans 30s");
+            _failCount = 0;
+        }
+    }
+
+    // Attend 200ms minimum entre deux commandes série
+    void _waitMinInterval() {
+        unsigned long elapsed = millis() - _lastCmdTime;
+        if (elapsed < 200) {
+            delay(200 - elapsed);
+        }
+        _lastCmdTime = millis();
+    }
 };
 
 #endif // DFPLAYER_H

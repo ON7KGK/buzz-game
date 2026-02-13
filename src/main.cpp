@@ -828,6 +828,11 @@ void loop() {
     // Animation LED2 rainbow continue
     mettreAJourLED2();
 
+    // Watchdog DFPlayer (toutes les 30s, reset auto après 3 échecs)
+    #if FEATURE_DFPLAYER_ENABLED
+    dfplayer.watchdog();
+    #endif
+
     // Machine à états
     switch (etatActuel) {
         case ATTENTE_DEMARRAGE:
