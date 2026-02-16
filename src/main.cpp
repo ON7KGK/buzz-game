@@ -11,6 +11,7 @@
  */
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include "init.h"
 #include "fonts.h"
 #include "drivers/LEDStrip.h"
@@ -112,6 +113,12 @@ const unsigned long DEBOUNCE_RELACHEMENT_MS = 0; // Sans délai de relâchement
 // Variables pour le buzzer GO
 unsigned long tempsBuzzer = 0;    // Quand le buzzer a été activé
 bool buzzerActif = false;          // true = buzzer en cours
+
+// Statistiques persistantes (NVS)
+Preferences preferences;
+uint32_t statsVictoires = 0;
+uint32_t statsDefaites = 0;
+uint32_t statsMeilleurTemps = 0;  // en millisecondes, 0 = aucun
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FONCTIONS D'AFFICHAGE
@@ -350,6 +357,75 @@ void afficherVictoire(unsigned long secondes, unsigned long dixiemes) {
     x = (480 - w) / 2 - x1;
     canvas->setCursor(x, 220);  // Plus bas que le BRAVO!
     canvas->print(temps);
+
+    display.flush();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATISTIQUES PERSISTANTES (NVS)
+// ═══════════════════════════════════════════════════════════════════════════
+
+void chargerStats() {
+    preferences.begin("buzzgame", true);  // read-only
+    statsVictoires = preferences.getUInt("wins", 0);
+    statsDefaites = preferences.getUInt("losses", 0);
+    statsMeilleurTemps = preferences.getUInt("bestTime", 0);
+    preferences.end();
+}
+
+void sauverStats() {
+    preferences.begin("buzzgame", false);  // read-write
+    preferences.putUInt("wins", statsVictoires);
+    preferences.putUInt("losses", statsDefaites);
+    preferences.putUInt("bestTime", statsMeilleurTemps);
+    preferences.end();
+}
+
+void afficherStats() {
+    display.clear(BLACK);
+    auto canvas = display.getCanvas();
+    canvas->setTextColor(YELLOW);
+    canvas->setFont(&FreeSansBold14pt8b);
+    canvas->setTextSize(1);
+
+    int16_t x1, y1;
+    uint16_t w, h;
+    uint32_t total = statsVictoires + statsDefaites;
+
+    // Ligne 1: Date de début du comptage
+    String l0 = utf8ToLatin1("Stat comptage depuis 16/2/2026");
+    canvas->getTextBounds(l0.c_str(), 0, 0, &x1, &y1, &w, &h);
+    canvas->setCursor((480 - w) / 2 - x1, 90);
+    canvas->print(l0);
+
+    // Ligne 2: Parties jouées
+    char ligne1[32];
+    sprintf(ligne1, "Parties : %lu", (unsigned long)total);
+    String l1 = utf8ToLatin1(ligne1);
+    canvas->getTextBounds(l1.c_str(), 0, 0, &x1, &y1, &w, &h);
+    canvas->setCursor((480 - w) / 2 - x1, 140);
+    canvas->print(l1);
+
+    // Ligne 3: Victoires / Défaites
+    char ligne2[48];
+    sprintf(ligne2, "Gagnés : %lu - Perdus : %lu",
+            (unsigned long)statsVictoires, (unsigned long)statsDefaites);
+    String l2 = utf8ToLatin1(ligne2);
+    canvas->getTextBounds(l2.c_str(), 0, 0, &x1, &y1, &w, &h);
+    canvas->setCursor((480 - w) / 2 - x1, 190);
+    canvas->print(l2);
+
+    // Ligne 4: Meilleur temps (seulement s'il existe)
+    if (statsMeilleurTemps > 0) {
+        unsigned long sec = statsMeilleurTemps / 1000;
+        unsigned long dix = (statsMeilleurTemps % 1000) / 100;
+        char ligne3[32];
+        sprintf(ligne3, "Top score : %lu.%lu s", sec, dix);
+        String l3 = utf8ToLatin1(ligne3);
+        canvas->getTextBounds(l3.c_str(), 0, 0, &x1, &y1, &w, &h);
+        canvas->setCursor((480 - w) / 2 - x1, 240);
+        canvas->print(l3);
+    }
 
     display.flush();
 }
@@ -696,13 +772,15 @@ void gererJeuEnCours() {
             tempsMessage = millis();
             messageRejouerAffiche = false; // Réinitialiser pour nouveau message
             led1Rouge();
+            statsDefaites++;
+            sauverStats();
+            afficherDefaite();
             #if FEATURE_I2S_AUDIO_ENABLED
             audio.play("/audio/touchette7.mp3");
             #endif
             #if FEATURE_DFPLAYER_ENABLED
-            dfplayer.playDefaite();  // DFPlayer: son de défaite
+            dfplayer.playDefaite();  // DFPlayer: son de défaite (après affichage)
             #endif
-            afficherDefaite();
             return;
         }
     }
@@ -713,13 +791,13 @@ void gererJeuEnCours() {
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
         led1Rouge();
+        afficherTimeout();
         #if FEATURE_I2S_AUDIO_ENABLED
         audio.play("/audio/erreur.mp3");
         #endif
         #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.playTimeout();  // DFPlayer: son de timeout
+        dfplayer.playTimeout();  // DFPlayer: son de timeout (après affichage)
         #endif
-        afficherTimeout();
         return;
     }
 
@@ -736,16 +814,24 @@ void gererJeuEnCours() {
         tempsMessage = millis();
         messageRejouerAffiche = false; // Réinitialiser pour nouveau message
         led1Vert();
-        #if FEATURE_I2S_AUDIO_ENABLED
-        audio.play("/audio/gagne2.mp3");
-        #endif
-        #if FEATURE_DFPLAYER_ENABLED
-        dfplayer.playVictoire();  // DFPlayer: son de victoire
-        #endif
+
+        // Sauver statistiques
+        statsVictoires++;
+        if (statsMeilleurTemps == 0 || compteur < statsMeilleurTemps) {
+            statsMeilleurTemps = compteur;
+        }
+        sauverStats();
 
         unsigned long secondes = compteur / 1000;
         unsigned long dixiemes = (compteur % 1000) / 100;
         afficherVictoire(secondes, dixiemes);
+
+        #if FEATURE_I2S_AUDIO_ENABLED
+        audio.play("/audio/gagne2.mp3");
+        #endif
+        #if FEATURE_DFPLAYER_ENABLED
+        dfplayer.playVictoire();  // DFPlayer: son de victoire (après affichage)
+        #endif
         return;
     }
 
@@ -791,7 +877,6 @@ void gererFinDePartie() {
 // ═══════════════════════════════════════════════════════════════════════════
 // SETUP - INITIALISATION
 // ═══════════════════════════════════════════════════════════════════════════
-
 void setup() {
     // Couper le buzzer immédiatement (GPIO flottant au boot)
     pinMode(PIN_BUZZER, OUTPUT);
@@ -809,6 +894,9 @@ void setup() {
         while(1) { delay(1000); }
     }
 
+    // Effacer l'écran immédiatement (supprimer le contenu résiduel du démarrage précédent)
+    display.clear(BLACK);
+
     // Initialiser les GPIO
     pinMode(PIN_PLOT_GAUCHE, INPUT_PULLUP);
     pinMode(PIN_PLOT_DROIT, INPUT_PULLUP);
@@ -823,8 +911,10 @@ void setup() {
     led1Blanc();
     // Initialiser le rainbow de LED2 sera fait dans loop()
 
-    // Afficher message initial
-    afficherTexte("Pour jouer, place le manche", "à gauche ou à droite");
+    // Charger et afficher les statistiques pendant 8 secondes
+    chargerStats();
+    afficherStats();
+    delay(8000);
 
     // Jouer le son de démarrage via DFPlayer
     #if FEATURE_DFPLAYER_ENABLED
